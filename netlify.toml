@@ -1,0 +1,19 @@
+# Netlify — job agent dashboard (Next.js static export).
+[build]
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  # Point this at wherever you deploy the API (and add the dashboard origin to
+  # the API's CORS_ORIGINS).
+  NEXT_PUBLIC_API_URL = "https://jobs-api.jackmiro.pt"
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Static export emits per-route .html; this is an SPA fallback for unknown paths
+# (force=false → real files/assets are served first).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = false
