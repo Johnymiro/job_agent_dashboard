@@ -25,7 +25,7 @@ add the dashboard origin to the API's `CORS_ORIGINS`.
 | `/` | Today's sends vs warm-up allowance, replies, reply/bounce rate, setup checklist, run pipeline |
 | `/jobs` | Scored jobs — filter by status/region/source/score; drawer with reasons, contacts, "Write email", "Find email" |
 | `/leads` | Agencies, funded startups, freelance asks — ranked by odds of a >$5k engagement |
-| `/outbox` | Every email: edit, approve & queue, send now, re-write, skip; replies inline |
+| `/outbox` | **Ready to send** list (best match first): edit, preview exactly as sent (HTML / plain text), Send, re-write, skip; sent emails and replies inline |
 | `/searches` | What discovery runs (Google Jobs/Maps/search via SerpAPI + free boards, HN, RSS, ATS boards) |
 | `/runs` | Trigger the full pipeline or one step; live per-step stats |
-| `/settings` | Sending & warm-up, thresholds, pipeline time, profile + CV upload, mail test, do-not-contact list |
+| `/settings` | Daily cap & warm-up, thresholds, pipeline time, profile + CV upload, mail test, do-not-contact list |

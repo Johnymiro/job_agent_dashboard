@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AuthGate } from "@/components/AuthGate";
+import { THEME_SCRIPT } from "@/components/theme";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
 
@@ -17,8 +18,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    // data-theme is set by THEME_SCRIPT before paint, so the server markup differs
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className={`${inter.className} antialiased`}>
         <Providers>
           <AuthGate>{children}</AuthGate>
         </Providers>

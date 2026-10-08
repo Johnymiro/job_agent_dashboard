@@ -4,9 +4,9 @@
   publish = "out"
 
 [build.environment]
-  # Point this at wherever you deploy the API (and add the dashboard origin to
-  # the API's CORS_ORIGINS).
-  NEXT_PUBLIC_API_URL = "https://jobs-api.jackmiro.pt"
+  # The API on the dev box (shared nginx + Let's Encrypt). Its CORS_ORIGINS
+  # allows https://jackmiro.pt, https://www.jackmiro.pt and localhost:3000.
+  NEXT_PUBLIC_API_URL = "https://api.jackmiro.pt"
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
 

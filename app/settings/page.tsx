@@ -18,30 +18,69 @@ import {
   updateSettings,
   uploadCv,
 } from "@/lib/api";
-import { Button, Card, Field, PageHeader, Spinner, Toggle, fmtTime, inputCls } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { useTheme } from "@/components/theme";
+import { Button, Card, Field, Label, Msg, Notice, PageHeader, Segmented, Spinner, Toggle, fmtTime, inputCls } from "@/components/ui";
 
 export default function SettingsPage() {
   return (
     <div className="max-w-5xl">
       <PageHeader title="Settings" sub="Your profile and CV drive scoring and writing; sending rules protect the jackmiro.pt domain." />
+      <nav className="no-scrollbar z-20 mt-4 flex gap-1 overflow-x-auto bg-bg/90 py-2 backdrop-blur lg:sticky lg:top-0">
+        {SECTIONS.map(([id, label]) => (
+          <a key={id} href={`#${id}`} className="shrink-0 rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-surface-2 hover:text-fg">
+            {label}
+          </a>
+        ))}
+      </nav>
       <PrefsSection />
       <ProfileSection />
       <MailSection />
       <SuppressionSection />
+      <AppearanceSection />
     </div>
   );
 }
 
-function Section({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
+const SECTIONS: [string, string][] = [
+  ["sending", "Sending & pipeline"],
+  ["profile", "Profile & CV"],
+  ["mail", "Mail"],
+  ["dnc", "Do-not-contact"],
+  ["appearance", "Appearance"],
+];
+
+function Section({
+  id,
+  title,
+  desc,
+  children,
+  right,
+}: {
+  id: string;
+  title: string;
+  desc?: string;
+  children: React.ReactNode;
+  right?: React.ReactNode;
+}) {
   return (
-    <Card className="mt-6 p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="text-sm font-semibold text-slate-100">{title}</div>
+    <Card id={id} className="mt-6 scroll-mt-20 p-5 sm:p-6 lg:scroll-mt-16">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-fg">{title}</h2>
+          {desc && <p className="mt-0.5 text-xs text-subtle">{desc}</p>}
+        </div>
         {right}
       </div>
       {children}
     </Card>
   );
+}
+
+/** Saved / error note next to a Save button. */
+function SaveNote({ text }: { text: string }) {
+  if (!text) return null;
+  return <Msg msg={{ ok: text === "Saved" || text.startsWith("CV uploaded ("), text }} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,7 +103,7 @@ function PrefsSection() {
     onError: (e) => setMsg(errorMessage(e)),
   });
 
-  if (!data || !p) return <Section title="Sending & pipeline"><Spinner /></Section>;
+  if (!data || !p) return <Section id="sending" title="Sending & pipeline"><Spinner /></Section>;
 
   const changed = (Object.keys(p) as (keyof Prefs)[]).filter((k) => p[k] !== data.prefs[k]);
   const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => setP({ ...p, [k]: v });
@@ -81,10 +120,12 @@ function PrefsSection() {
 
   return (
     <Section
+      id="sending"
       title="Sending & pipeline"
+      desc="How much goes out, to whom, and when the daily run happens."
       right={
         <div className="flex items-center gap-3">
-          {msg && <span className="text-xs text-slate-400">{msg}</span>}
+          <SaveNote text={msg} />
           <Button
             variant="primary"
             disabled={!changed.length}
@@ -96,35 +137,18 @@ function PrefsSection() {
         </div>
       }
     >
-      <div
-        className={`mb-5 rounded-lg border p-4 ${
-          p.sending_enabled ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"
-        }`}
-      >
-        <Toggle
-          checked={p.sending_enabled}
-          onChange={(v) => set("sending_enabled", v)}
-          label="Sending enabled"
-          hint="Master switch. When on, queued emails go out automatically inside the send window, paced across the day. Send yourself a test email and review a few drafts first."
-        />
-        <div className="mt-3">
-          <Toggle
-            checked={p.auto_queue}
-            onChange={(v) => set("auto_queue", v)}
-            label="Auto-queue new drafts"
-            hint="On: every email the agent writes is queued for sending (fully automatic). Off: drafts wait in the Outbox for your approval."
-          />
-        </div>
-      </div>
+      <Notice tone="good" icon="check" className="mb-6">
+        Nothing is sent automatically. The daily pipeline writes drafts; each one waits in the{" "}
+        <a href="/outbox" className="font-medium text-accent hover:underline">Outbox</a> until you review it and press Send.
+      </Notice>
+
+      <Label className="mb-3">Sending</Label>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {num("daily_limit", "Daily limit", "target emails/day")}
-        {num("send_start_hour", "Window start (h)", data.timezone)}
-        {num("send_end_hour", "Window end (h)", "0–24")}
+        {num("daily_limit", "Daily limit", "most sends per day")}
         {num("company_cooldown_days", "Company cooldown (days)", "one email per company")}
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Toggle checked={p.weekdays_only} onChange={(v) => set("weekdays_only", v)} label="Weekdays only" />
         <Toggle checked={p.attach_cv_on_pitches} onChange={(v) => set("attach_cv_on_pitches", v)} label="Attach CV to pitches" hint="Always attached to job applications" />
         <Toggle checked={p.followups_enabled} onChange={(v) => set("followups_enabled", v)} label="One follow-up if no reply" />
       </div>
@@ -134,10 +158,10 @@ function PrefsSection() {
           <Toggle checked={p.warmup_enabled} onChange={(v) => set("warmup_enabled", v)} label="Domain warm-up" />
         </div>
         {num("warmup_start", "Warm-up day 1", "emails on the first sending day")}
-        {num("warmup_step", "+ per sending day", `reaches ${p.daily_limit}/day after ${Math.max(0, Math.ceil((p.daily_limit - p.warmup_start) / Math.max(1, p.warmup_step)))} days`)}
+        {num("warmup_step", "+ per weekday", `reaches ${p.daily_limit}/day after ${Math.max(0, Math.ceil((p.daily_limit - p.warmup_start) / Math.max(1, p.warmup_step)))} days`)}
       </div>
 
-      <div className="mt-6 mb-2 text-xs uppercase tracking-wide text-slate-500">Qualification</div>
+      <Label className="mt-8 mb-3">Qualification</Label>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {num("min_score", "Min match score", "0–100, to write an email")}
         {num("lead_min_value_usd", "Min project value ($)", "leads below are skipped")}
@@ -155,7 +179,7 @@ function PrefsSection() {
         />
       </div>
 
-      <div className="mt-6 mb-2 text-xs uppercase tracking-wide text-slate-500">Daily pipeline</div>
+      <Label className="mt-8 mb-3">Daily pipeline</Label>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="flex items-end pb-1.5">
           <Toggle checked={p.pipeline_enabled} onChange={(v) => set("pipeline_enabled", v)} label="Run daily" />
@@ -165,7 +189,7 @@ function PrefsSection() {
         {num("max_score_per_run", "Max LLM scorings / run", "caps LLM spend")}
         {num("serpapi_daily_budget", "SerpAPI credits / day", "0 = auto (monthly left ÷ days left)")}
       </div>
-      <div className="mt-3 text-xs text-slate-500">
+      <div className="mt-4 text-xs text-subtle">
         LLM: {data.llm.provider} · {data.llm.model} · next run {fmtTime(data.next_runs.daily_pipeline)}
       </div>
     </Section>
@@ -176,6 +200,7 @@ function PrefsSection() {
 const LIST_FIELDS: [keyof Profile, string, "comma" | "lines", string?][] = [
   ["skills", "Skills", "comma"],
   ["languages", "Languages you speak", "comma", "emails are written in the posting's language only if it's listed here"],
+  ["work_countries", "Countries you can work in", "comma", "on-site/hybrid jobs elsewhere, and remote jobs limited to other countries, are filtered out"],
   ["exclude_keywords", "Exclude job titles containing", "comma", "dropped before any LLM call"],
   ["highlights", "Track record (one per line)", "lines", "the writer may only cite facts from your profile + CV"],
   ["target_roles", "Target roles (one per line)", "lines"],
@@ -192,7 +217,7 @@ function ProfileSection() {
   useEffect(() => {
     if (!data) return;
     const f: Record<string, string> = {};
-    for (const k of ["name", "headline", "location", "years_experience", "email", "phone", "portfolio_url", "linkedin_url", "github_url", "summary", "rate_note"] as const)
+    for (const k of ["name", "headline", "location", "years_experience", "email", "phone", "portfolio_url", "linkedin_url", "github_url", "summary", "rate_note", "availability", "b2b_company"] as const)
       f[k] = String(data[k] ?? "");
     for (const [k, , mode] of LIST_FIELDS) f[k] = ((data[k] as string[]) || []).join(mode === "comma" ? ", " : "\n");
     setForm(f);
@@ -221,7 +246,7 @@ function ProfileSection() {
     onError: (e) => setMsg(errorMessage(e)),
   });
 
-  if (!data) return <Section title="Profile & CV"><Spinner /></Section>;
+  if (!data) return <Section id="profile" title="Profile & CV"><Spinner /></Section>;
   const text = (k: string, label: string) => (
     <Field label={label}>
       <input className={inputCls} value={form[k] || ""} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
@@ -230,22 +255,25 @@ function ProfileSection() {
 
   return (
     <Section
+      id="profile"
       title="Profile & CV"
+      desc="What the AI knows about you — used to score matches and write emails."
       right={
         <div className="flex items-center gap-3">
-          {msg && <span className="text-xs text-slate-400">{msg}</span>}
+          <SaveNote text={msg} />
           <Button variant="primary" busy={save.isPending} onClick={() => save.mutate()}>Save profile</Button>
         </div>
       }
     >
-      <div className="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-[#1e293b] bg-[#111a2e] p-4">
+      <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-2/60 p-4">
         <div className="flex-1 text-sm">
           {data.cv_uploaded ? (
-            <span className="text-slate-200">
-              📎 {data.cv_filename} <span className="text-xs text-slate-500">· {data.cv_chars} chars of text for the LLM</span>
+            <span className="inline-flex flex-wrap items-center gap-x-2 text-fg">
+              <Icon name="paperclip" className="h-3.5 w-3.5 text-subtle" />
+              {data.cv_filename} <span className="text-xs text-subtle">· {data.cv_chars} chars of text for the LLM</span>
             </span>
           ) : (
-            <span className="text-amber-300">No CV uploaded — nothing with an attachment will be sent until you add one.</span>
+            <span className="text-warn">No CV uploaded — nothing with an attachment will be sent until you add one.</span>
           )}
         </div>
         <input
@@ -288,8 +316,10 @@ function ProfileSection() {
           </Field>
         ))}
       </div>
-      <div className="mt-4">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+        {text("availability", "Availability (optional, e.g. “from 1 November, 30-40 h/week”) — leave empty to never mention it")}
         {text("rate_note", "Rate note (optional, e.g. “from €550/day”) — leave empty to never mention rates")}
+        {text("b2b_company", "Company you invoice through (B2B, e.g. “Mirox Lda (Portugal)”) — mentioned in pitches and contract roles")}
       </div>
     </Section>
   );
@@ -302,7 +332,7 @@ function MailSection() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const test = useMutation({
     mutationFn: () => sendTestEmail(to || undefined),
-    onSuccess: (r) => setMsg({ ok: true, text: `Test email sent to ${r.to}. Open it → "Show original" and check SPF, DKIM and DMARC all say PASS.` }),
+    onSuccess: (r) => setMsg({ ok: true, text: `Test email sent to ${r.to} in the real layout. Check it looks right, then "Show original" → SPF, DKIM and DMARC should all say PASS.` }),
     onError: (e) => setMsg({ ok: false, text: errorMessage(e) }),
   });
   const inbox = useMutation({
@@ -316,16 +346,16 @@ function MailSection() {
   if (!data) return null;
   const m = data.mail;
   return (
-    <Section title="Mail (jackmiro.pt)">
+    <Section id="mail" title="Mail (jackmiro.pt)" desc="Delivery setup and a test send.">
       <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
         <Status ok={m.smtp_configured} label={`SMTP — sending as ${m.from}`} />
         <Status ok={m.imap_configured} label={`IMAP — replies & bounces (last check ${fmtTime(data.inbox_checked_at)})`} />
         <Status ok={data.imap_save_sent} label="Copies filed in your Sent folder" />
         <Status ok={m.cv_uploaded} label="CV attached to applications" />
       </div>
-      <div className="mt-2 text-xs text-slate-500">SMTP/IMAP credentials live in the server&apos;s .env (never in the browser).</div>
-      <div className="mt-4 flex flex-wrap items-end gap-2">
-        <div className="w-72">
+      <div className="mt-3 text-xs text-subtle">SMTP/IMAP credentials live in the server&apos;s .env (never in the browser).</div>
+      <div className="mt-5 flex flex-wrap items-end gap-2">
+        <div className="w-full sm:w-72">
           <Field label="Send a test email to">
             <input className={inputCls} placeholder={m.from} value={to} onChange={(e) => setTo(e.target.value)} />
           </Field>
@@ -333,16 +363,20 @@ function MailSection() {
         <Button busy={test.isPending} onClick={() => test.mutate()}>Send test</Button>
         <Button busy={inbox.isPending} onClick={() => inbox.mutate()}>Check inbox now</Button>
       </div>
-      {msg && <div className={`mt-3 text-xs ${msg.ok ? "text-emerald-300" : "text-rose-300"}`}>{msg.text}</div>}
+      {msg && <div className="mt-3"><Msg msg={msg} /></div>}
     </Section>
   );
 }
 
 function Status({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className={ok ? "text-emerald-400" : "text-rose-400"}>{ok ? "✓" : "✕"}</span>
-      <span className={ok ? "text-slate-300" : "text-slate-400"}>{label}</span>
+    <div className="flex items-start gap-2.5">
+      <span
+        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${ok ? "bg-good/15 text-good" : "bg-bad/15 text-bad"}`}
+      >
+        <Icon name={ok ? "check" : "x"} className="h-2.5 w-2.5" />
+      </span>
+      <span className={ok ? "text-fg-2" : "text-muted"}>{label}</span>
     </div>
   );
 }
@@ -362,8 +396,8 @@ function SuppressionSection() {
   });
   const del = useMutation({ mutationFn: (id: number) => deleteSuppression(id), onSuccess: invalidate });
   return (
-    <Section title="Do-not-contact list">
-      <p className="mb-3 text-xs text-slate-500">
+    <Section id="dnc" title="Do-not-contact list">
+      <p className="-mt-2 mb-4 text-xs text-subtle">
         Opt-outs, bounces and “not interested” replies land here automatically. Add an email or a whole domain
         (e.g. your current employer) to make sure it is never contacted.
       </p>
@@ -377,16 +411,37 @@ function SuppressionSection() {
         <input className={`${inputCls} max-w-sm`} placeholder="name@company.com or company.com" value={value} onChange={(e) => setValue(e.target.value)} />
         <Button type="submit" busy={add.isPending}>Add</Button>
       </form>
-      {add.isError && <div className="mt-2 text-xs text-rose-300">{errorMessage(add.error)}</div>}
-      <div className="mt-4 max-h-72 overflow-y-auto">
-        {data?.length === 0 && <div className="text-sm text-slate-500">Empty.</div>}
+      {add.isError && <div className="mt-2"><Msg msg={{ ok: false, text: errorMessage(add.error) }} /></div>}
+      <div className="mt-4 max-h-72 divide-y divide-line overflow-y-auto rounded-lg border border-line">
+        {data?.length === 0 && <div className="px-3 py-4 text-sm text-subtle">Empty.</div>}
         {data?.map((s) => (
-          <div key={s.id} className="flex items-center gap-3 border-b border-[#1e293b]/60 py-1.5 text-sm">
-            <span className="text-slate-200">{s.value}</span>
-            <span className="text-xs text-slate-500">{s.kind} · {s.reason} · {fmtTime(s.created_at)}</span>
-            <button className="ml-auto text-xs text-slate-500 hover:text-rose-300" onClick={() => del.mutate(s.id)}>remove</button>
+          <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm">
+            <span className="text-fg">{s.value}</span>
+            <span className="text-xs text-subtle">{s.kind} · {s.reason} · {fmtTime(s.created_at)}</span>
+            <button className="ml-auto text-xs text-subtle hover:text-bad" onClick={() => del.mutate(s.id)}>Remove</button>
           </div>
         ))}
+      </div>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+function AppearanceSection() {
+  const { pref, setPref } = useTheme();
+  return (
+    <Section id="appearance" title="Appearance" desc="Saved in this browser. Also in the sidebar footer.">
+      <div className="flex flex-wrap items-center gap-4">
+        <Segmented
+          value={pref}
+          onChange={setPref}
+          options={[
+            { value: "light", label: <><Icon name="sun" className="h-3.5 w-3.5" /> Light</> },
+            { value: "dark", label: <><Icon name="moon" className="h-3.5 w-3.5" /> Dark</> },
+            { value: "system", label: <><Icon name="monitor" className="h-3.5 w-3.5" /> System</> },
+          ]}
+        />
+        <span className="text-xs text-subtle">System follows your OS light/dark setting.</span>
       </div>
     </Section>
   );

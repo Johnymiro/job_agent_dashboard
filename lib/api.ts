@@ -130,21 +130,27 @@ export interface Application {
   // full=true only
   body?: string;
   reply_subject?: string | null;
-  preview?: string;
+}
+
+/** An email exactly as the recipient gets it (rendered from unsaved edits). */
+export interface EmailPreview {
+  from: string;
+  to: string;
+  subject: string;
+  attachment: string | null;
+  cv_uploaded: boolean;
+  html: string;
+  text: string;
 }
 
 export interface MailStatus {
-  sending_enabled: boolean;
   smtp_configured: boolean;
   imap_configured: boolean;
-  window_open: boolean;
-  window_reason: string;
   sent_today: number;
   allowance_today: number;
   daily_limit: number;
   warmup_started_on: string | null;
-  next_send_at: string | null;
-  queued: number;
+  ready: number; // drafts waiting for your Send
   cv_uploaded: boolean;
   from: string;
 }
@@ -179,6 +185,7 @@ export interface Stats {
     no_contact: number;
   };
   applications: Record<string, number>;
+  applications_by_kind?: Partial<Record<Kind, Record<string, number>>>;
   sent_7d: number;
   replies_7d: number;
   reply_rate_30d: number | null;
@@ -192,15 +199,10 @@ export interface Stats {
 }
 
 export interface Prefs {
-  sending_enabled: boolean;
-  auto_queue: boolean;
   daily_limit: number;
   warmup_enabled: boolean;
   warmup_start: number;
   warmup_step: number;
-  send_start_hour: number;
-  send_end_hour: number;
-  weekdays_only: boolean;
   attach_cv_on_pitches: boolean;
   company_cooldown_days: number;
   followups_enabled: boolean;
@@ -243,12 +245,15 @@ export interface Profile {
   linkedin_url: string;
   github_url: string;
   languages: string[];
+  work_countries: string[];
+  b2b_company: string;
   summary: string;
   skills: string[];
   highlights: string[];
   target_roles: string[];
   offers: string[];
   rate_note: string;
+  availability: string;
   exclude_keywords: string[];
   cv_filename: string | null;
   cv_chars: number;
@@ -315,6 +320,7 @@ export const draftOpportunity = (id: number, contact_id?: number) =>
 export const getApplications = (params: {
   status?: string;
   kind?: string;
+  opp_kind?: Kind;
   q?: string;
   limit?: number;
   offset?: number;
@@ -324,14 +330,15 @@ export const getApplications = (params: {
     .then((r) => r.data);
 export const getApplication = (id: number) =>
   api.get<Application>(`/api/applications/${id}`).then((r) => r.data);
-export const updateApplication = (
-  id: number,
-  changes: Partial<Pick<Application, "to_email" | "to_name" | "subject" | "body" | "attach_cv">>
-) => api.put<Application>(`/api/applications/${id}`, changes).then((r) => r.data);
-export type AppAction = "queue" | "unqueue" | "skip" | "send" | "redraft";
+export const updateApplication = (id: number, changes: EmailFields) =>
+  api.put<Application>(`/api/applications/${id}`, changes).then((r) => r.data);
+export type AppAction = "send" | "skip" | "restore" | "redraft";
 export const applicationAction = (id: number, action: AppAction) =>
   api.post<Application>(`/api/applications/${id}/${action}`).then((r) => r.data);
-export const bulkApplications = (ids: number[], action: "queue" | "unqueue" | "skip") =>
+export type EmailFields = Partial<Pick<Application, "to_email" | "to_name" | "subject" | "body" | "attach_cv">>;
+export const previewApplication = (id: number, fields: EmailFields) =>
+  api.post<EmailPreview>(`/api/applications/${id}/preview`, fields).then((r) => r.data);
+export const bulkApplications = (ids: number[], action: "skip" | "restore") =>
   api
     .post<{ updated: number }>("/api/applications-bulk", { ids, action })
     .then((r) => r.data);
@@ -351,6 +358,7 @@ export const runSearch = (id: number) =>
 
 export const getRuns = () =>
   api.get<{ running: boolean; items: RunRow[] }>("/api/runs").then((r) => r.data);
+export const getRun = (id: number) => api.get<RunRow>(`/api/runs/${id}`).then((r) => r.data);
 export const startRun = (kind: string) =>
   api.post<RunRow>("/api/runs", null, { params: { kind } }).then((r) => r.data);
 
