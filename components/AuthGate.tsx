@@ -37,7 +37,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     <>
       <Sidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="lg:pl-60">
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-surface/90 px-4 py-2.5 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-bg/90 px-4 py-2.5 backdrop-blur lg:hidden">
           <Brand />
           <button
             onClick={() => setNavOpen(true)}
@@ -47,7 +47,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             <Icon name="menu" className="h-5 w-5" />
           </button>
         </header>
-        <main className="mx-auto min-h-screen max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+        <main className="mx-auto min-h-screen max-w-[1280px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
       </div>
     </>
   );

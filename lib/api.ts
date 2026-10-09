@@ -251,6 +251,8 @@ export interface Prefs {
   send_gap_minutes: number;
   send_gap_max_minutes: number;
   reply_delay_minutes: number;
+  refill_retry_minutes: number;
+  refill_search_every_hours: number;
   job_share_percent: number;
   daily_applications: number;
   daily_pitches: number;

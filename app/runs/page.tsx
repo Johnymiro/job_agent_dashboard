@@ -12,7 +12,11 @@ const STEPS: [string, string, string][] = [
   ["draft", "Write emails", "Draft applications/pitches to keep ~1.5 days of emails ready to send."],
   ["followups", "Follow-ups", "Draft one follow-up for unanswered emails after N days."],
 ];
-const LABEL: Record<string, string> = { daily: "Full pipeline", ...Object.fromEntries(STEPS.map(([k, l]) => [k, l])) };
+const LABEL: Record<string, string> = {
+  daily: "Full pipeline",
+  refill: "Refill outbox",
+  ...Object.fromEntries(STEPS.map(([k, l]) => [k, l])),
+};
 
 export default function RunsPage() {
   const qc = useQueryClient();

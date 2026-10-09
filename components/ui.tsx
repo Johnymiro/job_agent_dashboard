@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/icons";
 
 export function Card({
@@ -11,7 +11,7 @@ export function Card({
   id?: string;
 }) {
   return (
-    <div id={id} className={`rounded-xl border border-line bg-surface shadow-card ${className}`}>
+    <div id={id} className={`panel border border-line bg-surface shadow-card ${className}`}>
       {children}
     </div>
   );
@@ -29,18 +29,45 @@ export function PageHeader({
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div className="min-w-0 max-w-3xl">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">{title}</h1>
-        {sub && <p className="mt-1 text-sm leading-relaxed text-subtle">{sub}</p>}
+        <div className="mb-1.5 font-mono text-xs text-subtle">
+          jackmiro.pt <span className="text-faint">/</span> agent <span className="text-faint">/</span>{" "}
+          <span className="text-accent">{title.toLowerCase()}</span>
+        </div>
+        <h1 className="text-3xl font-semibold tracking-tight text-fg">{title}</h1>
+        {sub && <p className="mt-1.5 text-sm leading-relaxed text-muted">{sub}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </div>
   );
 }
 
-/** Small uppercase heading used above card content. */
+/** Small uppercase mono heading used above card content. */
 export function Label({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`text-xs font-medium uppercase tracking-wide text-subtle ${className}`}>{children}</div>
+    <div className={`font-mono text-[11px] uppercase tracking-[0.14em] text-muted ${className}`}>{children}</div>
+  );
+}
+
+/** Numbered panel heading: [01] TODAY'S SENDING, with an optional link/aside on the right. */
+export function PanelTitle({
+  index,
+  children,
+  aside,
+  className = "",
+}: {
+  index?: string;
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`flex items-center justify-between gap-3 ${className}`}>
+      <Label>
+        {index && <span className="mr-2 text-accent">[{index}]</span>}
+        {children}
+      </Label>
+      {aside}
+    </div>
   );
 }
 
@@ -49,20 +76,74 @@ export function StatCard({
   value,
   sub,
   accent = false,
+  glyph,
+  badge,
+  valueClass,
+  children,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
   accent?: boolean;
+  /** faint symbol in the top-right corner (Σ, ρ …) */
+  glyph?: string;
+  /** replaces the glyph, e.g. an "over limit" warning */
+  badge?: React.ReactNode;
+  valueClass?: string;
+  /** a small meter between the number and the caption */
+  children?: React.ReactNode;
 }) {
   return (
-    <Card className="p-4 sm:p-5">
-      <Label>{label}</Label>
-      <div className={`mt-2 text-3xl font-semibold tabular-nums ${accent ? "text-accent" : "text-fg"}`}>
+    <Card className="flex flex-col p-4 sm:p-5">
+      <div className="flex min-h-6 items-start justify-between gap-2">
+        <Label className="pt-0.5">{label}</Label>
+        {badge ?? (glyph && <span className="font-serif text-lg italic leading-none text-subtle">{glyph}</span>)}
+      </div>
+      <div
+        className={`mt-3 font-mono text-4xl font-medium tabular-nums tracking-tight ${
+          valueClass ?? (accent ? "text-accent" : "text-fg")
+        }`}
+      >
         {value}
       </div>
-      {sub && <div className="mt-1 text-xs text-subtle">{sub}</div>}
+      {children && <div className="mt-4">{children}</div>}
+      {sub && <div className="mt-auto pt-4 text-sm text-muted">{sub}</div>}
     </Card>
+  );
+}
+
+/** Segmented meter: `filled` solid cells, then `hatched` striped ones, the rest empty.
+ *  Long counts are scaled so it never gets more than `maxCells` cells. */
+export function Cells({
+  total,
+  filled,
+  hatched = 0,
+  maxCells = 30,
+  className = "h-4",
+  fillClass = "bg-accent",
+}: {
+  total: number;
+  filled: number;
+  hatched?: number;
+  maxCells?: number;
+  className?: string;
+  fillClass?: string;
+}) {
+  const per = Math.max(1, Math.ceil(total / maxCells));
+  const n = Math.max(1, Math.ceil(total / per));
+  const f = Math.min(n, Math.round(filled / per));
+  const h = Math.min(n - f, Math.round(hatched / per));
+  return (
+    <div className={`flex gap-[3px] ${className}`} aria-hidden="true">
+      {Array.from({ length: n }, (_, i) => (
+        <span
+          key={i}
+          className={`min-w-0 flex-1 ${
+            i < f ? fillClass : i < f + h ? "hatch border border-accent/70" : "border border-line bg-surface-2/60"
+          }`}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -120,7 +201,7 @@ export function StatusBadge({ status }: { status: string | null }) {
   const s = status || "—";
   return (
     <span
-      className={`inline-flex items-center whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium ${
+      className={`inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-px font-mono text-[11px] ${
         TONE[STATUS_TONE[s] || "neutral"]
       }`}
     >
@@ -129,20 +210,28 @@ export function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
-const REPLY_TONE: Record<string, string> = {
-  interested: "text-good",
-  question: "text-info",
-  rejection: "text-subtle",
-  not_interested: "text-subtle",
-  unsubscribe: "text-bad",
-  auto_reply: "text-subtle",
-  other: "text-fg-2",
+const REPLY_TONE: Record<string, Tone> = {
+  interested: "good",
+  question: "info",
+  rejection: "dim",
+  not_interested: "dim",
+  unsubscribe: "bad",
+  auto_reply: "dim",
+  other: "neutral",
 };
 
 /** How the inbox classified a reply (interested, question, rejection…). */
 export function ReplyTag({ cls }: { cls: string | null }) {
   const c = cls || "other";
-  return <span className={`text-xs font-medium ${REPLY_TONE[c] || "text-muted"}`}>{humanize(cls || "reply")}</span>;
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-px font-mono text-[11px] ${
+        TONE[REPLY_TONE[c] || "neutral"]
+      }`}
+    >
+      {humanize(cls || "reply")}
+    </span>
+  );
 }
 
 export function ScoreBadge({ score }: { score: number | null }) {
@@ -215,14 +304,14 @@ type BtnVariant = "primary" | "ghost" | "danger" | "subtle";
 type BtnSize = "sm" | "md" | "lg";
 const BTN: Record<BtnVariant, string> = {
   primary: "bg-accent text-on-accent hover:bg-accent-hover",
-  ghost: "border border-line bg-surface text-fg-2 hover:bg-surface-2 hover:text-fg",
+  ghost: "border border-line bg-surface text-fg-2 hover:border-faint hover:bg-surface-2 hover:text-fg",
   danger: "border border-bad/30 text-bad hover:bg-bad/10",
   subtle: "text-muted hover:bg-surface-2 hover:text-fg",
 };
 const SIZE: Record<BtnSize, string> = {
   sm: "px-2.5 py-1 text-xs",
   md: "px-3 py-1.5 text-sm",
-  lg: "px-4 py-2.5 text-sm",
+  lg: "px-5 py-3 text-[15px] font-semibold",
 };
 
 /** Button look for links (<Link className={buttonClass("primary")}>). */
@@ -420,8 +509,8 @@ export function Field({
 export function Bar({ value, max, className = "bg-accent" }: { value: number; max: number; className?: string }) {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
-      <div className={`h-2 rounded-full transition-[width] ${className}`} style={{ width: `${pct}%` }} />
+    <div className="h-1.5 w-full overflow-hidden bg-surface-2">
+      <div className={`h-1.5 transition-[width] ${className}`} style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -448,6 +537,25 @@ export function timeAgo(iso: string | null | undefined): string {
   if (s < 3600) return `${Math.round(s / 60)}m ago`;
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
   return `${Math.round(s / 86400)}d ago`;
+}
+
+/** Current time, refreshed every `ms` so countdowns tick without refetching. */
+export function useNow(ms = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(t);
+  }, [ms]);
+  return now;
+}
+
+/** "in 19h 05m" / "in 12m" / "due now" until an ISO time. */
+export function untilLabel(iso: string, now: number): string {
+  const m = Math.round((new Date(iso).getTime() - now) / 60_000);
+  if (m <= 0) return "due now";
+  if (m < 60) return `in ${m}m`;
+  const h = Math.floor(m / 60);
+  return h < 48 ? `in ${h}h ${String(m % 60).padStart(2, "0")}m` : `in ${Math.round(h / 24)}d`;
 }
 
 export function fmtTime(iso: string | null | undefined): string {

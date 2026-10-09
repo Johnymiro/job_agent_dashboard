@@ -169,6 +169,10 @@ function PrefsSection() {
         {num("reply_delay_minutes", "Reply after (minutes)", "an instant answer reads like a bot")}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+        {num("refill_retry_minutes", "Refill outbox: retry after (min)", "when auto-send has nothing left, it runs the pipeline steps that can fill it")}
+        {num("refill_search_every_hours", "Refill: search again after (h)", "new searches at most this often")}
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
         {num("meeting_hour_start", "Calls from (hour)", "weekdays only")}
         {num("meeting_hour_end", "Calls until (hour)")}
         {num("meeting_minutes", "Call length (minutes)")}

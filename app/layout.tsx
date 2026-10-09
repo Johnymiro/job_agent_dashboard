@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AuthGate } from "@/components/AuthGate";
 import { THEME_SCRIPT } from "@/components/theme";
 
-const inter = Inter({ subsets: ["latin"], display: "swap" });
+const sans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"], display: "swap", variable: "--font-plex-sans" });
+const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], display: "swap", variable: "--font-plex-mono" });
 
 export const metadata: Metadata = {
   title: "Jack Miro · Job Agent",
@@ -19,11 +20,11 @@ export default function RootLayout({
 }) {
   return (
     // data-theme is set by THEME_SCRIPT before paint, so the server markup differs
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className={`${inter.className} antialiased`}>
+      <body className="font-sans antialiased">
         <Providers>
           <AuthGate>{children}</AuthGate>
         </Providers>

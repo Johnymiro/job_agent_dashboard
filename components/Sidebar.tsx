@@ -6,12 +6,13 @@ import { useQuery } from "@tanstack/react-query";
 import { getStats, logout } from "@/lib/api";
 import { Icon, type IconName } from "@/components/icons";
 import { useTheme, type ThemePref } from "@/components/theme";
-import { fmtTime } from "@/components/ui";
+import { fmtTime, untilLabel, useNow } from "@/components/ui";
 
 type NavItem = { href: string; label: string; icon: IconName; count?: "ready" };
 
-const NAV: { title?: string; items: NavItem[] }[] = [
+const NAV: { title: string; items: NavItem[] }[] = [
   {
+    title: "workspace",
     items: [
       { href: "/", label: "Overview", icon: "overview" },
       { href: "/outbox", label: "Outbox", icon: "send", count: "ready" },
@@ -20,7 +21,7 @@ const NAV: { title?: string; items: NavItem[] }[] = [
     ],
   },
   {
-    title: "Setup",
+    title: "setup",
     items: [
       { href: "/searches", label: "Searches", icon: "compass" },
       { href: "/runs", label: "Runs", icon: "activity" },
@@ -32,28 +33,28 @@ const NAV: { title?: string; items: NavItem[] }[] = [
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { data: stats } = useQuery({ queryKey: ["stats"], queryFn: getStats, refetchInterval: 30_000 });
+  const now = useNow();
+  const next = stats?.next_runs.daily_pipeline;
 
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px] lg:hidden" onClick={onClose} />}
+      {open && <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px] lg:hidden" onClick={onClose} />}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-line bg-surface px-3 py-5 transition-transform duration-200 lg:w-60 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-line bg-bg px-3.5 py-5 transition-transform duration-200 lg:w-60 lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="mb-6 flex items-center justify-between px-2">
+        <div className="mb-7 flex items-center justify-between px-1.5">
           <Brand />
           <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-surface-2 lg:hidden" aria-label="Close menu">
             <Icon name="x" />
           </button>
         </div>
 
-        <nav className="flex flex-col gap-5">
-          {NAV.map((group, gi) => (
-            <div key={gi}>
-              {group.title && (
-                <div className="mb-1.5 px-3 text-[11px] font-medium uppercase tracking-wider text-faint">{group.title}</div>
-              )}
+        <nav className="flex flex-col gap-6">
+          {NAV.map((group) => (
+            <div key={group.title}>
+              <div className="mb-2 px-3 font-mono text-[11px] text-faint">// {group.title}</div>
               <div className="flex flex-col gap-0.5">
                 {group.items.map((item) => {
                   const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -62,7 +63,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                      className={`flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-colors ${
                         active ? "bg-accent/10 font-medium text-accent" : "text-muted hover:bg-surface-2 hover:text-fg"
                       }`}
                     >
@@ -71,7 +72,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                       {n > 0 && (
                         <span
                           title={`${n} ready to send`}
-                          className="rounded-full bg-accent px-1.5 py-px text-[11px] font-semibold tabular-nums text-on-accent"
+                          className="rounded-sm bg-accent px-1.5 py-px font-mono text-[11px] font-medium tabular-nums text-on-accent"
                         >
                           {n}
                         </span>
@@ -88,30 +89,34 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           {stats && (
             <Link
               href="/runs"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-subtle hover:bg-surface-2 hover:text-fg"
+              className="panel block border border-line bg-surface px-3.5 py-3 font-mono transition-colors hover:border-faint"
             >
               {stats.pipeline_running ? (
-                <>
+                <div className="flex items-center gap-2 text-xs text-accent">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
                   </span>
-                  <span className="text-accent">Pipeline running…</span>
-                </>
+                  pipeline running…
+                </div>
               ) : (
                 <>
-                  <Icon name="clock" className="h-3.5 w-3.5" />
-                  Next run {fmtTime(stats.next_runs.daily_pipeline)}
+                  <div className="flex items-center gap-1.5 text-[11px] text-subtle">
+                    <Icon name="clock" className="h-3 w-3" />
+                    next run
+                  </div>
+                  <div className="mt-1.5 text-[13px] text-fg">{fmtTime(next)}</div>
+                  {next && <div className="mt-1 text-[11px] text-accent">{untilLabel(next, now)}</div>}
                 </>
               )}
             </Link>
           )}
-          <div className="flex items-center justify-between gap-2 border-t border-line px-1 pt-3">
+          <div className="flex items-center justify-between gap-2 border-t border-line px-0.5 pt-3">
             <ThemeSwitch />
             <button
               onClick={logout}
               title="Sign out"
-              className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-fg"
+              className="flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-xs text-muted hover:bg-surface-2 hover:text-fg"
             >
               <Icon name="logout" className="h-3.5 w-3.5" />
               Sign out
@@ -125,11 +130,13 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
 
 export function Brand() {
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-[11px] font-bold text-on-accent">JM</span>
+    <div className="flex items-center gap-3">
+      <span className="flex h-9 w-9 items-center justify-center border border-accent/60 bg-accent/10 font-mono text-xs font-medium text-accent">
+        JM
+      </span>
       <div className="leading-tight">
         <div className="text-sm font-semibold tracking-tight text-fg">Jack Miro</div>
-        <div className="text-[11px] text-subtle">Job & project agent</div>
+        <div className="font-mono text-[11px] text-subtle">job & project agent</div>
       </div>
     </div>
   );
@@ -145,7 +152,7 @@ const THEMES: [ThemePref, IconName, string][] = [
 export function ThemeSwitch() {
   const { pref, setPref } = useTheme();
   return (
-    <div className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5" role="radiogroup" aria-label="Theme">
+    <div className="inline-flex border border-line bg-surface p-0.5" role="radiogroup" aria-label="Theme">
       {THEMES.map(([value, icon, label]) => (
         <button
           key={value}
@@ -154,8 +161,8 @@ export function ThemeSwitch() {
           title={label}
           aria-label={label}
           onClick={() => setPref(value)}
-          className={`rounded-md p-1.5 transition-colors ${
-            pref === value ? "bg-surface text-fg shadow-sm" : "text-subtle hover:text-fg"
+          className={`rounded-sm p-1.5 transition-colors ${
+            pref === value ? "bg-accent/10 text-accent" : "text-subtle hover:text-fg"
           }`}
         >
           <Icon name={icon} className="h-3.5 w-3.5" />

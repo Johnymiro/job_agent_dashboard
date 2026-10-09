@@ -29,7 +29,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4">
-      <form onSubmit={onSubmit} className="w-full max-w-sm rounded-2xl border border-line bg-surface p-7 shadow-card">
+      <form onSubmit={onSubmit} className="panel w-full max-w-sm border border-line bg-surface p-7">
         <div className="mb-7">
           <Brand />
         </div>
