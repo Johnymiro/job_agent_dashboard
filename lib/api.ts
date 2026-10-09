@@ -107,8 +107,8 @@ export interface Application {
   id: number;
   opportunity_id: number;
   parent_id: number | null;
-  kind: "application" | "pitch" | "followup";
-  status: string;
+  kind: "application" | "pitch" | "followup" | "reply";
+  status: string; // draft | needs_input | failed | sent | replied | bounced | skipped
   to_email: string;
   to_name: string | null;
   subject: string;
@@ -130,6 +130,40 @@ export interface Application {
   // full=true only
   body?: string;
   reply_subject?: string | null;
+  inbound?: InboundEmail | null; // kind=reply: the email this answers
+}
+
+/** Their email that one of our replies answers. */
+export interface InboundEmail {
+  from_email: string;
+  from_name: string | null;
+  subject: string | null;
+  body: string | null;
+  received_at: string | null;
+  summary: string | null;
+  intent: string | null;
+  needs: string[]; // what only you can answer (status needs_input)
+  answer: string | null;
+}
+
+export interface Meeting {
+  id: number;
+  status: "confirmed" | "pending" | "needs_booking" | "cancelled";
+  source: "email" | "invite" | "link";
+  start_at: string | null;
+  minutes: number;
+  when: string | null; // "Tuesday 13 October, 12:00-12:30 Lisbon time (UTC+1)"
+  title: string | null;
+  with_whom: string | null;
+  join_url: string | null;
+  booking_url: string | null;
+  note: string | null;
+  prep: string | null;
+  company: string | null;
+  opportunity_id: number | null;
+  application_id: number | null;
+  opportunity_title: string | null;
+  opportunity_url: string | null;
 }
 
 /** An email exactly as the recipient gets it (rendered from unsaved edits). */
@@ -147,12 +181,20 @@ export interface MailStatus {
   smtp_configured: boolean;
   imap_configured: boolean;
   sent_today: number;
+  applications_today: number; // job applications + their follow-ups
+  pitches_today: number; // pitches + their follow-ups
+  daily_applications: number;
+  daily_pitches: number;
+  job_share_percent: number;
   allowance_today: number;
   daily_limit: number;
   warmup_started_on: string | null;
   ready: number; // drafts waiting for your Send
   cv_uploaded: boolean;
   from: string;
+  auto_send: boolean;
+  auto_reply: boolean;
+  send_hours: [number, number];
 }
 
 export interface SerpSummary {
@@ -196,10 +238,25 @@ export interface Stats {
   mail: MailStatus;
   next_runs: Record<string, string | null>;
   serpapi: SerpSummary;
+  meetings: Meeting[];
+  needs_input: number;
 }
 
 export interface Prefs {
   daily_limit: number;
+  auto_send: boolean;
+  auto_reply: boolean;
+  send_hour_start: number;
+  send_hour_end: number;
+  send_gap_minutes: number;
+  send_gap_max_minutes: number;
+  reply_delay_minutes: number;
+  job_share_percent: number;
+  daily_applications: number;
+  daily_pitches: number;
+  meeting_hour_start: number;
+  meeting_hour_end: number;
+  meeting_minutes: number;
   warmup_enabled: boolean;
   warmup_start: number;
   warmup_step: number;
@@ -231,6 +288,8 @@ export interface SettingsResponse {
   llm: { provider: string; model: string };
   timezone: string;
   imap_save_sent: boolean;
+  provider_files_sent: boolean; // Gmail / Workspace keep SMTP-sent mail in Sent themselves
+  telegram: { configured: boolean; queued: number; last_error: string | null };
 }
 
 export interface Profile {
@@ -255,6 +314,7 @@ export interface Profile {
   rate_note: string;
   availability: string;
   exclude_keywords: string[];
+  answers: string[]; // what you told the agent, reused when the question comes up again
   cv_filename: string | null;
   cv_chars: number;
   cv_uploaded: boolean;
@@ -338,6 +398,16 @@ export const applicationAction = (id: number, action: AppAction) =>
 export type EmailFields = Partial<Pick<Application, "to_email" | "to_name" | "subject" | "body" | "attach_cv">>;
 export const previewApplication = (id: number, fields: EmailFields) =>
   api.post<EmailPreview>(`/api/applications/${id}/preview`, fields).then((r) => r.data);
+/** Your answer to what a held reply needs; the agent rewrites the reply with it. */
+export const answerApplication = (id: number, text: string) =>
+  api
+    .post<Application & { missing: string[] }>(`/api/applications/${id}/answer`, { text })
+    .then((r) => r.data);
+export const getMeetings = () =>
+  api.get<{ upcoming: Meeting[]; past: Meeting[]; free: string[] }>("/api/meetings").then((r) => r.data);
+export const cancelMeeting = (id: number) =>
+  api.post<Meeting>(`/api/meetings/${id}/cancel`).then((r) => r.data);
+export const testNotify = () => api.post<{ ok: boolean }>("/api/notify/test").then((r) => r.data);
 export const bulkApplications = (ids: number[], action: "skip" | "restore") =>
   api
     .post<{ updated: number }>("/api/applications-bulk", { ids, action })

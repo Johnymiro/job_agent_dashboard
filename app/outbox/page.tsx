@@ -6,7 +6,9 @@ import {
   AppAction,
   Application,
   EmailFields,
+  InboundEmail,
   Kind,
+  answerApplication,
   applicationAction,
   bulkApplications,
   errorMessage,
@@ -41,7 +43,7 @@ import {
   usd,
 } from "@/components/ui";
 
-const READY = "draft,failed";
+const READY = "draft,failed,needs_input";
 const TABS: [string, string][] = [
   [READY, "Ready to send"],
   ["sent", "Sent"],
@@ -58,8 +60,8 @@ const TYPES: [Kind, string][] = [
   ["lead", "Project acquisition"],
 ];
 
-const EDITABLE = ["draft", "failed", "skipped"];
-const SENDABLE = ["draft", "failed"];
+const EDITABLE = ["draft", "failed", "skipped", "needs_input"];
+const SENDABLE = ["draft", "failed", "needs_input"];
 
 export default function OutboxPage() {
   const qc = useQueryClient();
@@ -126,7 +128,10 @@ export default function OutboxPage() {
         sub={
           mail ? (
             <>
-              Nothing goes out until you press Send · <b className="font-medium text-fg-2">{mail.sent_today}/{mail.allowance_today}</b> sent today
+              {mail.auto_send
+                ? `Auto-send is on: drafts go out by themselves, weekdays ${mail.send_hours[0]}:00–${mail.send_hours[1]}:00`
+                : "Nothing goes out until you press Send"}
+              {mail.auto_reply && " · replies too"} · <b className="font-medium text-fg-2">{mail.sent_today}/{mail.allowance_today}</b> sent today
               {mail.allowance_today < mail.daily_limit && " (warm-up)"}
             </>
           ) : (
@@ -377,6 +382,9 @@ function Editor({ id, onDone }: { id: number; onDone: (id: number, note: string)
       {a.sent_at && <div className="mt-3 text-xs text-subtle">Sent {fmtTime(a.sent_at)}</div>}
       {a.error && <div className="mt-3 rounded-lg border border-bad/25 bg-bad/5 px-3 py-2 text-xs text-bad">{a.error}</div>}
 
+      {a.inbound && <TheirEmail m={a.inbound} />}
+      {a.status === "needs_input" && a.inbound && <AnswerBox app={a} onDone={refresh} />}
+
       {a.reply_snippet && (
         <div className="mt-4 rounded-lg border border-plum/30 bg-plum/5 p-4">
           <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs">
@@ -471,7 +479,7 @@ function Editor({ id, onDone }: { id: number; onDone: (id: number, note: string)
             <Button variant="primary" disabled={busy} onClick={() => act.mutate("restore")}>Restore to ready</Button>
           )}
           <Button busy={save.isPending} disabled={!dirty || busy} onClick={() => save.mutate()}>Save</Button>
-          {a.kind !== "followup" && sendable && (
+          {a.kind !== "followup" && a.kind !== "reply" && sendable && (
             <Button
               disabled={busy}
               busy={act.isPending && act.variables === "redraft"}
@@ -490,6 +498,83 @@ function Editor({ id, onDone }: { id: number; onDone: (id: number, note: string)
         msg && <div className="mt-3"><Msg msg={msg} /></div>
       )}
     </Card>
+  );
+}
+
+/** The email a reply answers (kind=reply). */
+function TheirEmail({ m }: { m: InboundEmail }) {
+  return (
+    <div className="mt-4 rounded-lg border border-plum/30 bg-plum/5 p-4">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs">
+        <Icon name="message" className="h-3.5 w-3.5 text-plum" />
+        <span className="font-medium text-fg-2">Their email</span>
+        <span className="text-subtle">from {m.from_name ? `${m.from_name} <${m.from_email}>` : m.from_email} · {fmtTime(m.received_at)}</span>
+      </div>
+      {m.subject && <div className="mb-1 text-xs font-medium text-muted">{m.subject}</div>}
+      <div className="max-h-64 overflow-y-auto whitespace-pre-wrap text-sm text-fg">{m.body}</div>
+    </div>
+  );
+}
+
+const TODO = "To do: ";
+
+/** A reply the agent held because they asked what your profile doesn't say:
+ *  your answer goes in here and the agent rewrites the reply with it (and
+ *  remembers it, see Settings → Profile → Answers). */
+function AnswerBox({ app, onDone }: { app: Application; onDone: (d: Application) => void }) {
+  const [text, setText] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const answer = useMutation({
+    mutationFn: () => answerApplication(app.id, text),
+    onSuccess: (d) => {
+      onDone(d);
+      setText("");
+      setMsg(
+        d.missing.length
+          ? { ok: false, text: `Still needs: ${d.missing.join("; ")}` }
+          : { ok: true, text: "Reply rewritten with your answer. Check it below, then it's ready to send." },
+      );
+    },
+    onError: (e) => setMsg({ ok: false, text: errorMessage(e) }),
+  });
+  const all = app.inbound?.needs || [];
+  // "To do: ..." = something they asked you to do yourself (apply on their site, a form)
+  const tasks = all.filter((n) => n.startsWith(TODO)).map((n) => n.slice(TODO.length));
+  const needs = all.filter((n) => !n.startsWith(TODO));
+  return (
+    <div className="mt-4 rounded-lg border border-warn/40 bg-warn/5 p-4">
+      <div className="text-sm font-medium text-fg">{needs.length ? "Needs your answer" : "Needs you to do something"}</div>
+      <p className="mt-0.5 text-xs text-subtle">
+        {needs.length
+          ? "They asked something your profile and CV don't answer, so nothing goes out until you do."
+          : "They asked you to do this yourself. Do it, then write \"done\": the reply says it's done."}
+      </p>
+      {tasks.length > 0 && (
+        <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-fg-2">
+          {tasks.map((n) => <li key={n}>{n}</li>)}
+        </ul>
+      )}
+      {needs.length > 0 && (
+        <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm text-fg-2">
+          {needs.map((n) => <li key={n}>{n}</li>)}
+        </ul>
+      )}
+      <textarea
+        className={`${inputCls} mt-3 min-h-[90px] py-2 font-[inherit]`}
+        placeholder={needs.length
+          ? "e.g. 65–75k EUR a year, or B2B through Mirox. I can start 1 November. No production Kubernetes."
+          : "done"}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button variant="primary" size="sm" busy={answer.isPending} disabled={!text.trim()} onClick={() => answer.mutate()}>
+          <Icon name="sparkles" className="h-3.5 w-3.5" /> Write the reply with my answer
+        </Button>
+        <span className="text-xs text-subtle">or edit the message yourself and press Send</span>
+      </div>
+      {msg && <div className="mt-2"><Msg msg={msg} /></div>}
+    </div>
   );
 }
 

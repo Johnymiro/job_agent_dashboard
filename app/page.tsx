@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Stats, errorMessage, getStats, startRun } from "@/lib/api";
+import { Meeting, Stats, errorMessage, getStats, startRun } from "@/lib/api";
 import { Icon } from "@/components/icons";
 import {
   Bar,
@@ -54,7 +54,15 @@ export default function OverviewPage() {
       {data && (
         <>
           <SetupChecklist data={data} />
+          {data.needs_input > 0 && (
+            <Notice tone="warn" icon="message">
+              {data.needs_input} {data.needs_input === 1 ? "reply is" : "replies are"} waiting for your answer: they asked
+              something your profile doesn&apos;t say.{" "}
+              <Link href="/outbox" className="font-medium text-accent hover:underline">Answer in the Outbox →</Link>
+            </Notice>
+          )}
           <TodayCard data={data} />
+          {data.meetings.length > 0 && <CallsCard meetings={data.meetings} />}
 
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard
@@ -174,6 +182,10 @@ function TodayCard({ data }: { data: Stats }) {
           <div className="mt-3 max-w-md">
             <Bar value={m.sent_today} max={Math.max(1, m.allowance_today)} />
           </div>
+          <div className="mt-2 text-xs text-subtle tabular-nums">
+            Job applications {m.applications_today}/{m.daily_applications} · Pitches {m.pitches_today}/{m.daily_pitches}
+            {m.pitches_today > m.applications_today && m.job_share_percent > 0 && " · pitches wait until applications catch up"}
+          </div>
         </div>
 
         <div className="sm:text-right">
@@ -184,7 +196,11 @@ function TodayCard({ data }: { data: Stats }) {
                 <Icon name="arrowRight" />
               </Link>
               <div className="mt-2 text-xs text-subtle">
-                {capped ? "Today's limit reached — they'll keep for tomorrow" : "Nothing goes out until you press Send"}
+                {capped
+                  ? "Today's limit reached — they'll keep for tomorrow"
+                  : m.auto_send
+                    ? `Auto-send is on: they go out by themselves, weekdays ${m.send_hours[0]}:00–${m.send_hours[1]}:00`
+                    : "Nothing goes out until you press Send"}
               </div>
             </>
           ) : (
@@ -199,6 +215,38 @@ function TodayCard({ data }: { data: Stats }) {
             </div>
           )}
         </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Booked calls (and booking links to act on). The full briefing went to Telegram. */
+function CallsCard({ meetings }: { meetings: Meeting[] }) {
+  return (
+    <Card className="p-5">
+      <Label>Upcoming calls</Label>
+      <div className="-mx-2 mt-3 space-y-0.5">
+        {meetings.map((m) => (
+          <div key={m.id} className="rounded-lg px-2 py-2.5">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <Icon name="calendar" className="h-3.5 w-3.5 text-subtle" />
+              <span className="font-medium text-fg">{m.when || "Not booked yet"}</span>
+              {m.status === "pending" && <span className="text-xs text-warn">confirmation not sent yet</span>}
+              {m.status === "needs_booking" && <span className="text-xs text-warn">pick a slot</span>}
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+              <span className="truncate">{[m.company, m.opportunity_title].filter(Boolean).join(" · ") || m.title}</span>
+              {m.with_whom && <span>with {m.with_whom}</span>}
+              {m.join_url?.startsWith("http") && (
+                <a className="font-medium text-accent hover:underline" href={m.join_url} target="_blank" rel="noreferrer">join</a>
+              )}
+              {m.booking_url && m.status === "needs_booking" && (
+                <a className="font-medium text-accent hover:underline" href={m.booking_url} target="_blank" rel="noreferrer">book a slot</a>
+              )}
+            </div>
+            {m.note && <div className="mt-0.5 text-xs text-warn">{m.note}</div>}
+          </div>
+        ))}
       </div>
     </Card>
   );

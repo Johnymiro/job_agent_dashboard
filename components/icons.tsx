@@ -156,6 +156,14 @@ const PATHS = {
     </>
   ),
   filter: <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />,
+  calendar: (
+    <>
+      <rect width="18" height="18" x="3" y="4" rx="2" />
+      <path d="M16 2v4" />
+      <path d="M8 2v4" />
+      <path d="M3 10h18" />
+    </>
+  ),
   clock: (
     <>
       <circle cx="12" cy="12" r="10" />

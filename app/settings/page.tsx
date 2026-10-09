@@ -14,6 +14,7 @@ import {
   getSettings,
   getSuppressions,
   sendTestEmail,
+  testNotify,
   updateProfile,
   updateSettings,
   uploadCv,
@@ -43,7 +44,7 @@ export default function SettingsPage() {
 }
 
 const SECTIONS: [string, string][] = [
-  ["sending", "Sending & pipeline"],
+  ["sending", "Sending & automation"],
   ["profile", "Profile & CV"],
   ["mail", "Mail"],
   ["dnc", "Do-not-contact"],
@@ -103,7 +104,7 @@ function PrefsSection() {
     onError: (e) => setMsg(errorMessage(e)),
   });
 
-  if (!data || !p) return <Section id="sending" title="Sending & pipeline"><Spinner /></Section>;
+  if (!data || !p) return <Section id="sending" title="Sending & automation"><Spinner /></Section>;
 
   const changed = (Object.keys(p) as (keyof Prefs)[]).filter((k) => p[k] !== data.prefs[k]);
   const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => setP({ ...p, [k]: v });
@@ -121,8 +122,8 @@ function PrefsSection() {
   return (
     <Section
       id="sending"
-      title="Sending & pipeline"
-      desc="How much goes out, to whom, and when the daily run happens."
+      title="Sending & automation"
+      desc="How much goes out, to whom, when, and what the agent answers by itself."
       right={
         <div className="flex items-center gap-3">
           <SaveNote text={msg} />
@@ -137,15 +138,50 @@ function PrefsSection() {
         </div>
       }
     >
-      <Notice tone="good" icon="check" className="mb-6">
-        Nothing is sent automatically. The daily pipeline writes drafts; each one waits in the{" "}
-        <a href="/outbox" className="font-medium text-accent hover:underline">Outbox</a> until you review it and press Send.
+      <Notice tone={data.prefs.auto_send ? "warn" : "good"} icon={data.prefs.auto_send ? "send" : "check"} className="mb-6">
+        {data.prefs.auto_send
+          ? `Auto-send is on: drafts go out by themselves on weekdays between ${data.prefs.send_hour_start}:00 and ${data.prefs.send_hour_end}:00, one every ${data.prefs.send_gap_minutes}–${Math.max(data.prefs.send_gap_minutes, data.prefs.send_gap_max_minutes)} minutes: up to ${data.prefs.daily_applications} job applications and ${data.prefs.daily_pitches} pitches a day, within the daily limit, at least ${data.prefs.job_share_percent}% of them applications. Skip anything you don't want sent in the `
+          : "Nothing is sent automatically. The daily pipeline writes drafts; each one waits in the "}
+        <a href="/outbox" className="font-medium text-accent hover:underline">Outbox</a>
+        {data.prefs.auto_send ? "." : " until you review it and press Send."}
       </Notice>
 
-      <Label className="mb-3">Sending</Label>
+      <Label className="mb-3">Automation</Label>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Toggle
+          checked={p.auto_send}
+          onChange={(v) => set("auto_send", v)}
+          label="Send drafts by themselves"
+          hint="Weekdays inside send hours, best match first. A draft that looks unfinished, or whose job you dropped, is held instead."
+        />
+        <Toggle
+          checked={p.auto_reply}
+          onChange={(v) => set("auto_reply", v)}
+          label="Answer their replies"
+          hint="A one-line thank-you on a rejection, call times inside your window, facts from your profile and CV. Never to no-reply addresses; anything your profile can't answer waits for you."
+        />
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+        {num("send_hour_start", "Send from (hour)", data.timezone)}
+        {num("send_hour_end", "Send until (hour)")}
+        {num("send_gap_minutes", "Gap between emails: from (min)", "a random wait in this range")}
+        {num("send_gap_max_minutes", "Gap: to (minutes)", p.send_gap_max_minutes < p.send_gap_minutes ? "lower than 'from': 'from' is used" : `${Math.round((p.daily_limit * (p.send_gap_minutes + Math.max(p.send_gap_minutes, p.send_gap_max_minutes))) / 2 / 60)}h for ${p.daily_limit} emails`)}
+        {num("reply_delay_minutes", "Reply after (minutes)", "an instant answer reads like a bot")}
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+        {num("meeting_hour_start", "Calls from (hour)", "weekdays only")}
+        {num("meeting_hour_end", "Calls until (hour)")}
+        {num("meeting_minutes", "Call length (minutes)")}
+      </div>
+      <TelegramStatus t={data.telegram} />
+
+      <Label className="mt-8 mb-3">Sending</Label>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {num("daily_limit", "Daily limit", "most sends per day")}
+        {num("daily_limit", "Daily limit", "most sends per day, all kinds")}
+        {num("daily_applications", "Job applications per day", "follow-ups to them included")}
+        {num("daily_pitches", "Project pitches per day", p.daily_applications + p.daily_pitches > p.daily_limit ? `together over the daily limit (${p.daily_limit}): the limit wins` : "agencies & funded startups, follow-ups included")}
+        {num("job_share_percent", "Job applications: min % of a day", "a pitch only goes while applications stay at least this share")}
         {num("company_cooldown_days", "Company cooldown (days)", "one email per company")}
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -196,6 +232,37 @@ function PrefsSection() {
   );
 }
 
+/** Telegram goes through the smm-server's bot (its contact endpoint). */
+function TelegramStatus({ t }: { t: { configured: boolean; queued: number; last_error: string | null } }) {
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const test = useMutation({
+    mutationFn: testNotify,
+    onSuccess: () => setMsg({ ok: true, text: "Sent, check Telegram." }),
+    onError: (e) => setMsg({ ok: false, text: errorMessage(e) }),
+  });
+  return (
+    <div className="mt-4 rounded-lg border border-line bg-surface-2/60 p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <Status
+          ok={t.configured}
+          label={
+            t.configured
+              ? `Telegram: briefings, reminders and questions via the smm-server bot${t.queued ? ` · ${t.queued} waiting (rate limit)` : ""}`
+              : "Telegram: off, set TELEGRAM_RELAY_KEY in the server .env"
+          }
+        />
+        {t.configured && (
+          <Button size="sm" className="sm:ml-auto" busy={test.isPending} onClick={() => test.mutate()}>
+            Send test message
+          </Button>
+        )}
+      </div>
+      {t.last_error && t.queued > 0 && <div className="mt-1 text-xs text-subtle">Last error: {t.last_error}</div>}
+      {msg && <div className="mt-2"><Msg msg={msg} /></div>}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 const LIST_FIELDS: [keyof Profile, string, "comma" | "lines", string?][] = [
   ["skills", "Skills", "comma"],
@@ -205,6 +272,7 @@ const LIST_FIELDS: [keyof Profile, string, "comma" | "lines", string?][] = [
   ["highlights", "Track record (one per line)", "lines", "the writer may only cite facts from your profile + CV"],
   ["target_roles", "Target roles (one per line)", "lines"],
   ["offers", "What you offer agencies/startups (one per line)", "lines"],
+  ["answers", "Answers you gave the agent (one per line)", "lines", "reused when a company asks the same thing; edit or delete freely"],
 ];
 
 function ProfileSection() {
@@ -350,7 +418,10 @@ function MailSection() {
       <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
         <Status ok={m.smtp_configured} label={`SMTP — sending as ${m.from}`} />
         <Status ok={m.imap_configured} label={`IMAP — replies & bounces (last check ${fmtTime(data.inbox_checked_at)})`} />
-        <Status ok={data.imap_save_sent} label="Copies filed in your Sent folder" />
+        <Status
+          ok={data.imap_save_sent || data.provider_files_sent}
+          label={data.provider_files_sent ? "Copies in your Sent folder (Gmail files them itself)" : "Copies filed in your Sent folder"}
+        />
         <Status ok={m.cv_uploaded} label="CV attached to applications" />
       </div>
       <div className="mt-3 text-xs text-subtle">SMTP/IMAP credentials live in the server&apos;s .env (never in the browser).</div>

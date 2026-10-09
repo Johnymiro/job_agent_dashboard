@@ -31,6 +31,10 @@ const HELP: Record<string, string> = {
   greenhouse: "Comma-separated Greenhouse board slugs, e.g. n26, gitlab.",
   lever: "Comma-separated Lever company slugs.",
   ashby: "Comma-separated Ashby board slugs, e.g. ramp, linear.",
+  landing_jobs: "Optional keywords to keep (Landing.jobs: tech jobs, mostly in Portugal).",
+  himalayas: "Comma-separated keywords, one search each · params {\"country\":\"Portugal\",\"pages\":2}: remote jobs open to that country.",
+  working_nomads: "Comma-separated keywords to keep (remote development jobs).",
+  weworkremotely: "Comma-separated keywords to keep (We Work Remotely full-stack, front-end and back-end feeds).",
   rss: "Funding-news feed URL (RSS/Atom).",
 };
 

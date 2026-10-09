@@ -95,6 +95,7 @@ const STATUS_TONE: Record<string, Tone> = {
   closed: "dim",
   // applications
   draft: "neutral",
+  needs_input: "warn",
   sent: "info",
   replied: "plum",
   bounced: "bad",
@@ -110,6 +111,7 @@ const STATUS_TONE: Record<string, Tone> = {
 const STATUS_LABEL: Record<string, string> = {
   no_contact: "no email",
   low_score: "low score",
+  needs_input: "needs your answer",
 };
 
 export const humanize = (s: string) => s.replace(/_/g, " ");
