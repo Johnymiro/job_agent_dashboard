@@ -168,6 +168,7 @@ const STATUS_TONE: Record<string, Tone> = {
   low_score: "dim",
   scored: "info",
   no_contact: "warn",
+  apply: "orchid",
   ready: "good",
   drafted: "iris",
   applied: "info",
@@ -191,6 +192,7 @@ const STATUS_TONE: Record<string, Tone> = {
 
 const STATUS_LABEL: Record<string, string> = {
   no_contact: "no email",
+  apply: "apply on site",
   low_score: "low score",
   needs_input: "needs your answer",
 };

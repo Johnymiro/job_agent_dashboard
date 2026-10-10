@@ -8,7 +8,7 @@ import { Icon, type IconName } from "@/components/icons";
 import { useTheme, type ThemePref } from "@/components/theme";
 import { fmtTime, untilLabel, useNow } from "@/components/ui";
 
-type NavItem = { href: string; label: string; icon: IconName; count?: "ready" };
+type NavItem = { href: string; label: string; icon: IconName; count?: "ready" | "apply" };
 
 const NAV: { title: string; items: NavItem[] }[] = [
   {
@@ -16,8 +16,9 @@ const NAV: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/", label: "Overview", icon: "overview" },
       { href: "/outbox", label: "Outbox", icon: "send", count: "ready" },
-      { href: "/jobs", label: "Jobs", icon: "briefcase" },
+      { href: "/jobs", label: "Jobs", icon: "briefcase", count: "apply" },
       { href: "/leads", label: "Leads & Projects", icon: "target" },
+      { href: "/portfolio", label: "Portfolio visitors", icon: "globe" },
     ],
   },
   {
@@ -58,7 +59,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               <div className="flex flex-col gap-0.5">
                 {group.items.map((item) => {
                   const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-                  const n = item.count === "ready" ? stats?.mail.ready || 0 : 0;
+                  const n = item.count === "ready" ? stats?.mail.ready || 0 : item.count === "apply" ? stats?.opportunities.apply || 0 : 0;
                   return (
                     <Link
                       key={item.href}

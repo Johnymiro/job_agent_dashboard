@@ -8,6 +8,7 @@ import {
   EmailFields,
   InboundEmail,
   Kind,
+  PortfolioVisit,
   answerApplication,
   applicationAction,
   bulkApplications,
@@ -263,6 +264,7 @@ export default function OutboxPage() {
                     <span className="text-subtle">{a.kind}</span>
                     <span className="truncate text-subtle">{a.to_email}</span>
                     {a.reply_class && <ReplyTag cls={a.reply_class} />}
+                    {a.portfolio && <VisitTag v={a.portfolio} />}
                     {a.error && <span className="truncate text-bad">{a.error}</span>}
                   </div>
                 </div>
@@ -286,6 +288,38 @@ export default function OutboxPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** They opened the portfolio link in this email (PostHog, via its ?r= ref). */
+function VisitTag({ v }: { v: PortfolioVisit }) {
+  return (
+    <span
+      title={`Opened your portfolio: ${v.visits} visit(s), last ${fmtTime(v.last_visit)}`}
+      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm border border-good/30 bg-good/10 px-1.5 py-px font-mono text-[11px] text-good"
+    >
+      <Icon name="globe" className="h-3 w-3" />
+      visited{v.visits > 1 ? ` ×${v.visits}` : ""}
+    </span>
+  );
+}
+
+/** Editor: what the readers of this email did on the portfolio. */
+function PortfolioVisits({ v }: { v: PortfolioVisit }) {
+  const where = [v.city, v.country].filter(Boolean).join(", ");
+  return (
+    <div className="mt-3 rounded-lg border border-good/25 bg-good/5 px-3 py-2 text-xs text-fg-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Icon name="globe" className="h-3.5 w-3.5 text-good" />
+        <span className="font-medium text-fg">Opened your portfolio</span>
+        <span className="text-muted">
+          {v.visits} {v.visits === 1 ? "visit" : "visits"} · {v.pageviews} {v.pageviews === 1 ? "page" : "pages"}
+          {where && ` · ${where}`} · last {timeAgo(v.last_visit)}
+        </span>
+        {v.enquiries > 0 && <span className="font-medium text-good">· sent an enquiry</span>}
+      </div>
+      {v.pages.length > 0 && <div className="mt-1 truncate font-mono text-[11px] text-subtle">{v.pages.join("  ")}</div>}
     </div>
   );
 }
@@ -380,6 +414,7 @@ function Editor({ id, onDone }: { id: number; onDone: (id: number, note: string)
       </div>
 
       {a.sent_at && <div className="mt-3 text-xs text-subtle">Sent {fmtTime(a.sent_at)}</div>}
+      {a.portfolio && <PortfolioVisits v={a.portfolio} />}
       {a.error && <div className="mt-3 rounded-lg border border-bad/25 bg-bad/5 px-3 py-2 text-xs text-bad">{a.error}</div>}
 
       {a.inbound && <TheirEmail m={a.inbound} />}

@@ -204,7 +204,7 @@ function PrefsSection() {
           <Toggle checked={p.warmup_enabled} onChange={(v) => set("warmup_enabled", v)} label="Domain warm-up" />
         </div>
         {num("warmup_start", "Warm-up day 1", "emails on the first sending day")}
-        {num("warmup_step", "+ per weekday", `reaches ${p.daily_limit}/day after ${Math.max(0, Math.ceil((p.daily_limit - p.warmup_start) / Math.max(1, p.warmup_step)))} days`)}
+        {num("warmup_step", "+ per weekday", data.mail.ramp_held ? `held at ${data.mail.ramp_held}/day: 2%+ of the last 14 days' emails bounced` : `reaches ${p.daily_limit}/day after ${Math.max(0, Math.ceil((p.daily_limit - p.warmup_start) / Math.max(1, p.warmup_step)))} days`)}
       </div>
 
       <Label className="mt-8 mb-3">Qualification</Label>
@@ -223,6 +223,14 @@ function PrefsSection() {
           label="Allow guessed inboxes (careers@ / hello@)"
           hint="Only when no real address is found. More reach, but guesses bounce more — and bounces hurt a new domain."
         />
+        <div className="mt-4">
+          <Toggle
+            checked={p.job_generic_inbox}
+            onChange={(v) => set("job_generic_inbox", v)}
+            label="Apply to jobs at hello@ / info@"
+            hint="Off: a job whose posting has an application form and no recruiting inbox or person goes to Jobs → Apply on site instead. Those general inboxes answered “apply on our careers page” every time."
+          />
+        </div>
       </div>
 
       <Label className="mt-8 mb-3">Daily pipeline</Label>

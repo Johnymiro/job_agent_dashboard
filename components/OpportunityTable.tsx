@@ -8,6 +8,7 @@ import {
   Opportunity,
   OpportunityDetail,
   addOpportunityContact,
+  coverNote,
   draftOpportunity,
   enrichOpportunity,
   errorMessage,
@@ -39,11 +40,13 @@ import {
   usd,
 } from "@/components/ui";
 
-const ACTIVE = "scored,ready,no_contact,drafted,applied,replied,interview,won";
+const ACTIVE = "scored,ready,apply,no_contact,drafted,applied,replied,interview,won";
 /** The filters you use daily, as tabs… */
 const MAIN_FILTERS: { value: string; label: string }[] = [
   { value: ACTIVE, label: "Active" },
   { value: "ready", label: "Ready to email" },
+  // jobs with an application form and no recruiting inbox: you apply on their site
+  { value: "apply", label: "Apply on site" },
   { value: "no_contact", label: "No email" },
   { value: "applied", label: "Applied" },
   { value: "replied,interview,won", label: "Replied" },
@@ -144,7 +147,7 @@ export function OpportunityTable({ kind }: { kind: Kind }) {
             className="-mx-1 px-1"
             value={inMore ? "__more" : status}
             onChange={reset(setStatus)}
-            options={MAIN_FILTERS}
+            options={MAIN_FILTERS.filter((f) => kind === "job" || f.value !== "apply")}
           />
           <select
             aria-label="More statuses"
@@ -235,6 +238,13 @@ export function OpportunityTable({ kind }: { kind: Kind }) {
       </div>
 
       <UnscoredBanner kind={kind} running={running} />
+      {status === "apply" && (
+        <Notice tone="info" className="mt-4">
+          Good matches whose posting has an application form and no recruiting inbox or person to email.
+          Companies like these answered emails to hello@ with &ldquo;apply on our careers page&rdquo;, so apply there:
+          open one, get a cover note, then mark it Applied.
+        </Notice>
+      )}
 
       <Card className="mt-4 overflow-x-auto">
         {isLoading && <div className="p-5"><Spinner /></div>}
@@ -414,6 +424,7 @@ function Drawer({ id, onClose }: { id: number; onClose: () => void }) {
   });
 
   const hasEmail = !!o && (o.contacts.length > 0 || !!o.contact_email);
+  const toApply = o?.status === "apply";
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-[1px]" onClick={onClose}>
@@ -451,8 +462,13 @@ function Drawer({ id, onClose }: { id: number; onClose: () => void }) {
               </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-2">
+                {toApply && (o.apply_url || o.url) && (
+                  <a className={buttonClass("primary")} href={o.apply_url || o.url || "#"} target="_blank" rel="noreferrer">
+                    Apply on their site <Icon name="external" className="h-3.5 w-3.5" />
+                  </a>
+                )}
                 <Button
-                  variant="primary"
+                  variant={toApply ? "ghost" : "primary"}
                   busy={draft.isPending}
                   onClick={() => draft.mutate(undefined)}
                   disabled={!hasEmail}
@@ -463,7 +479,7 @@ function Drawer({ id, onClose }: { id: number; onClose: () => void }) {
                 <Button busy={enrich.isPending} onClick={() => enrich.mutate()}>
                   <Icon name="search" className="h-3.5 w-3.5" /> Find email
                 </Button>
-                {(o.apply_url || o.url) && (
+                {!toApply && (o.apply_url || o.url) && (
                   <a className={buttonClass()} href={o.apply_url || o.url || "#"} target="_blank" rel="noreferrer">
                     Posting <Icon name="external" className="h-3.5 w-3.5" />
                   </a>
@@ -483,6 +499,7 @@ function Drawer({ id, onClose }: { id: number; onClose: () => void }) {
                   {!CONTACTED.has(o.status) && (
                     <option value="applied">{o.kind === "job" ? "Applied on their website" : "Contacted (outside the app)"}</option>
                   )}
+                  {o.kind === "job" && !toApply && <option value="apply">To apply on their site</option>}
                   <option value="interview">Interview</option>
                   <option value="won">Won</option>
                   <option value="closed">Closed / rejected</option>
@@ -491,6 +508,8 @@ function Drawer({ id, onClose }: { id: number; onClose: () => void }) {
                 </select>
               </div>
               {msg && <div className="mt-3"><Msg msg={msg} /></div>}
+
+              {o.kind === "job" && (o.apply_url || o.url) && <CoverNotePanel id={o.id} />}
 
               <MatchReasons o={o} className="mt-6" />
 
@@ -547,6 +566,45 @@ function Drawer({ id, onClose }: { id: number; onClose: () => void }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** A note to paste into their application form: written on request (an LLM
+ *  call with the same rules and fact-check as emails), never stored or sent. */
+function CoverNotePanel({ id }: { id: number }) {
+  const [copied, setCopied] = useState(false);
+  const note = useMutation({ mutationFn: () => coverNote(id) });
+  const copy = async () => {
+    if (!note.data) return;
+    try {
+      await navigator.clipboard.writeText(note.data.body);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="mt-6 rounded-lg border border-line bg-surface-2/50 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Label className="flex-1">Cover note for their form</Label>
+        {note.data && (
+          <Button size="sm" onClick={copy}>
+            {copied && <Icon name="check" className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy"}
+          </Button>
+        )}
+        <Button size="sm" busy={note.isPending} onClick={() => note.mutate()}>
+          <Icon name="sparkles" className="h-3.5 w-3.5" /> {note.data ? "Write again" : "Write cover note"}
+        </Button>
+      </div>
+      {note.isError && <div className="mt-2"><Msg msg={{ ok: false, text: errorMessage(note.error) }} /></div>}
+      {note.data?.held && (
+        <div className="mt-2 text-xs text-warn">Check before using: {note.data.held.replace(/^held for review: /, "")}</div>
+      )}
+      {note.data && (
+        <textarea className={`${inputCls} mt-3 min-h-[200px]`} defaultValue={note.data.body} key={note.data.body} />
+      )}
     </div>
   );
 }

@@ -25,7 +25,8 @@ add the dashboard origin to the API's `CORS_ORIGINS`.
 | `/` | Today's sends vs warm-up allowance, replies, reply/bounce rate, setup checklist, run pipeline |
 | `/jobs` | Scored jobs — filter by status/region/source/score; drawer with reasons, contacts, "Write email", "Find email" |
 | `/leads` | Agencies, funded startups, freelance asks — ranked by odds of a >$5k engagement |
-| `/outbox` | **Ready to send** list (best match first): edit, preview exactly as sent (HTML / plain text), Send, re-write, skip; sent emails and replies inline |
+| `/outbox` | **Ready to send** list (best match first): edit, preview exactly as sent (HTML / plain text), Send, re-write, skip; sent emails and replies inline; a "visited" badge when someone opened the portfolio link in a sent email |
+| `/portfolio` | Portfolio visitors (PostHog): visits per day, countries and cities, pages (time, scroll), sources, actions, clicks, and which sent emails brought a visit. Needs `POSTHOG_*` in the API's `.env` |
 | `/searches` | What discovery runs (Google Jobs/Maps/search via SerpAPI + free boards, HN, RSS, ATS boards) |
 | `/runs` | Trigger the full pipeline or one step; live per-step stats |
 | `/settings` | Daily cap & warm-up, thresholds, pipeline time, profile + CV upload, mail test, do-not-contact list |

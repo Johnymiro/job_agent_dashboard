@@ -127,6 +127,8 @@ export interface Application {
   company: string | null;
   score: number | null;
   opportunity_url: string | null;
+  /** Its readers on the portfolio (PostHog); null = no visit seen (or not connected). */
+  portfolio?: PortfolioVisit | null;
   // full=true only
   body?: string;
   reply_subject?: string | null;
@@ -196,6 +198,7 @@ export interface MailStatus {
   auto_reply: boolean;
   send_hours: [number, number];
   send_on_weekends: boolean;
+  ramp_held: number | null; // bounces at 2%+: warm-up held at this many a day
 }
 
 export interface SerpSummary {
@@ -226,6 +229,7 @@ export interface Stats {
     by_status: Record<string, number>;
     high_matches: number;
     no_contact: number;
+    apply: number; // jobs to apply to on their site
   };
   applications: Record<string, number>;
   applications_by_kind?: Partial<Record<Kind, Record<string, number>>>;
@@ -275,6 +279,7 @@ export interface Prefs {
   lead_min_value_usd: number;
   max_age_days: number;
   allow_guessed_emails: boolean;
+  job_generic_inbox: boolean;
   pipeline_enabled: boolean;
   pipeline_on_weekends: boolean;
   pipeline_hour: number;
@@ -382,6 +387,17 @@ export const draftOpportunity = (id: number, contact_id?: number) =>
     .post<Application>(`/api/opportunities/${id}/draft`, null, { params: { contact_id } })
     .then((r) => r.data);
 
+export interface CoverNote {
+  subject: string;
+  body: string;
+  held: string | null; // what the fact-check still flags
+  form: string | null; // their application form
+}
+
+/** A note to paste into their application form (nothing is stored or sent). */
+export const coverNote = (id: number) =>
+  api.post<CoverNote>(`/api/opportunities/${id}/cover-note`).then((r) => r.data);
+
 export const getApplications = (params: {
   status?: string;
   kind?: string;
@@ -469,3 +485,56 @@ export const addSuppression = (value: string, reason = "manual") =>
   api.post("/api/suppressions", { value, reason }).then((r) => r.data);
 export const deleteSuppression = (id: number) =>
   api.delete(`/api/suppressions/${id}`).then((r) => r.data);
+
+// ---- Portfolio visitors (PostHog, read by the server: src/analytics.py) ------
+/** What the readers of one sent email did on the portfolio (its ?r= visit ref). */
+export interface PortfolioVisit {
+  visits: number;
+  pageviews: number;
+  first_visit: string | null;
+  last_visit: string | null;
+  city: string | null;
+  country: string | null;
+  pages: string[];
+  enquiries: number;
+  seconds: number | null;
+}
+
+export interface LeadVisit extends PortfolioVisit {
+  application: {
+    id: number;
+    kind: Application["kind"];
+    status: string;
+    to_email: string;
+    subject: string;
+    sent_at: string | null;
+    reply_class: string | null;
+    opportunity_kind: Kind | null;
+    opportunity_title: string | null;
+    company: string | null;
+  };
+}
+
+type Visits = { visits: number };
+
+export interface Analytics {
+  configured: true;
+  days: number;
+  /** section → error; that section is null */
+  errors: Record<string, string>;
+  totals: { visits: number; pageviews: number; contact_opens: number; enquiries: number; lead_visits: number } | null;
+  engagement: { avg_seconds: number | null; avg_scroll: number | null } | null;
+  daily: ({ day: string; pageviews: number } & Visits)[] | null;
+  countries: ({ code: string | null; name: string | null } & Visits)[] | null;
+  cities: ({ city: string; code: string | null } & Visits)[] | null;
+  pages: ({ path: string | null; pageviews: number; avg_seconds: number | null; avg_scroll: number | null } & Visits)[] | null;
+  sources: ({ source: string | null } & Visits)[] | null;
+  devices: ({ device: string | null } & Visits)[] | null;
+  languages: ({ lang: string } & Visits)[] | null;
+  events: ({ event: string; count: number } & Visits)[] | null;
+  clicks: ({ label: string; count: number } & Visits)[] | null;
+  leads: LeadVisit[];
+}
+
+export const getAnalytics = (days: number) =>
+  api.get<Analytics | { configured: false }>("/api/analytics", { params: { days } }).then((r) => r.data);
