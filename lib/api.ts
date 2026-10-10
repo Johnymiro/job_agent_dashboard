@@ -195,6 +195,7 @@ export interface MailStatus {
   auto_send: boolean;
   auto_reply: boolean;
   send_hours: [number, number];
+  send_on_weekends: boolean;
 }
 
 export interface SerpSummary {
@@ -248,6 +249,7 @@ export interface Prefs {
   auto_reply: boolean;
   send_hour_start: number;
   send_hour_end: number;
+  send_on_weekends: boolean;
   send_gap_minutes: number;
   send_gap_max_minutes: number;
   reply_delay_minutes: number;
@@ -274,6 +276,7 @@ export interface Prefs {
   max_age_days: number;
   allow_guessed_emails: boolean;
   pipeline_enabled: boolean;
+  pipeline_on_weekends: boolean;
   pipeline_hour: number;
   pipeline_minute: number;
   max_score_per_run: number;

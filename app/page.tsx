@@ -158,7 +158,7 @@ function TodayCard({ data, index }: { data: Stats; index: string }) {
                 {capped
                   ? "Today's limit reached — they'll keep for tomorrow"
                   : m.auto_send
-                    ? `Auto-send is on: weekdays ${m.send_hours[0]}:00–${m.send_hours[1]}:00`
+                    ? `Auto-send is on: ${m.send_on_weekends ? "every day" : "weekdays"} ${m.send_hours[0]}:00–${m.send_hours[1]}:00`
                     : "Nothing goes out until you press Send"}
               </div>
               <div className="font-mono text-[11px] text-subtle tabular-nums">

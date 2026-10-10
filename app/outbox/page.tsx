@@ -129,7 +129,7 @@ export default function OutboxPage() {
           mail ? (
             <>
               {mail.auto_send
-                ? `Auto-send is on: drafts go out by themselves, weekdays ${mail.send_hours[0]}:00–${mail.send_hours[1]}:00`
+                ? `Auto-send is on: drafts go out by themselves, ${mail.send_on_weekends ? "every day" : "weekdays"} ${mail.send_hours[0]}:00–${mail.send_hours[1]}:00`
                 : "Nothing goes out until you press Send"}
               {mail.auto_reply && " · replies too"} · <b className="font-medium text-fg-2">{mail.sent_today}/{mail.allowance_today}</b> sent today
               {mail.allowance_today < mail.daily_limit && " (warm-up)"}

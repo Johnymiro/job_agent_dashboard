@@ -35,6 +35,10 @@ const HELP: Record<string, string> = {
   himalayas: "Comma-separated keywords, one search each · params {\"country\":\"Portugal\",\"pages\":2}: remote jobs open to that country.",
   working_nomads: "Comma-separated keywords to keep (remote development jobs).",
   weworkremotely: "Comma-separated keywords to keep (We Work Remotely full-stack, front-end and back-end feeds).",
+  itjobs: "Comma-separated search terms, one listing page each (ITJobs.pt, Portugal). Offers often print the email to apply to.",
+  workable: "Comma-separated search terms · location = country or Europe · params {\"remote\":true}. Every company hiring through Workable; jobs come with the employer's website.",
+  remoterocketship: "Comma-separated role pages (software-engineer, frontend-engineer, fullstack-developer, node-js-developer) · params {\"country\":\"portugal\",\"pages\":2,\"stack\":\"react, node\"}: remote jobs open to that country.",
+  devjobs: "Comma-separated keywords to keep (title or tech). SwissDevJobs, GermanTechJobs, DevITjobs UK/NL: remote roles only · params {\"sites\":[\"swissdevjobs.ch\"]} to limit.",
   rss: "Funding-news feed URL (RSS/Atom).",
 };
 

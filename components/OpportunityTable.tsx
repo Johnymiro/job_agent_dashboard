@@ -59,7 +59,7 @@ const MORE_FILTERS: [string, string][] = [
 
 const SOURCES: Record<Kind, string[]> = {
   job: ["google_jobs", "remotive", "remoteok", "arbeitnow", "jobicy", "hn_hiring", "landing_jobs", "himalayas",
-        "working_nomads", "weworkremotely", "greenhouse", "lever", "ashby"],
+        "working_nomads", "weworkremotely", "greenhouse", "lever", "ashby", "itjobs", "workable", "remoterocketship", "devjobs"],
   lead: ["google_maps", "rss", "google", "hn_freelance"],
 };
 

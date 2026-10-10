@@ -140,25 +140,31 @@ function PrefsSection() {
     >
       <Notice tone={data.prefs.auto_send ? "warn" : "good"} icon={data.prefs.auto_send ? "send" : "check"} className="mb-6">
         {data.prefs.auto_send
-          ? `Auto-send is on: drafts go out by themselves on weekdays between ${data.prefs.send_hour_start}:00 and ${data.prefs.send_hour_end}:00, one every ${data.prefs.send_gap_minutes}–${Math.max(data.prefs.send_gap_minutes, data.prefs.send_gap_max_minutes)} minutes: up to ${data.prefs.daily_applications} job applications and ${data.prefs.daily_pitches} pitches a day, within the daily limit, at least ${data.prefs.job_share_percent}% of them applications. Skip anything you don't want sent in the `
+          ? `Auto-send is on: drafts go out by themselves ${data.prefs.send_on_weekends ? "every day" : "on weekdays"} between ${data.prefs.send_hour_start}:00 and ${data.prefs.send_hour_end}:00, one every ${data.prefs.send_gap_minutes}–${Math.max(data.prefs.send_gap_minutes, data.prefs.send_gap_max_minutes)} minutes: up to ${data.prefs.daily_applications} job applications and ${data.prefs.daily_pitches} pitches a day, within the daily limit, applications first (at least ${data.prefs.job_share_percent}% while there are jobs to apply to). An empty job or pitch list is refilled by itself. Skip anything you don't want sent in the `
           : "Nothing is sent automatically. The daily pipeline writes drafts; each one waits in the "}
         <a href="/outbox" className="font-medium text-accent hover:underline">Outbox</a>
         {data.prefs.auto_send ? "." : " until you review it and press Send."}
       </Notice>
 
       <Label className="mb-3">Automation</Label>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Toggle
           checked={p.auto_send}
           onChange={(v) => set("auto_send", v)}
           label="Send drafts by themselves"
-          hint="Weekdays inside send hours, best match first. A draft that looks unfinished, or whose job you dropped, is held instead."
+          hint="Inside send hours, best match first. A draft that looks unfinished, or whose job you dropped, is held instead."
         />
         <Toggle
           checked={p.auto_reply}
           onChange={(v) => set("auto_reply", v)}
           label="Answer their replies"
           hint="A one-line thank-you on a rejection, call times inside your window, facts from your profile and CV. Never to no-reply addresses; anything your profile can't answer waits for you."
+        />
+        <Toggle
+          checked={p.send_on_weekends}
+          onChange={(v) => set("send_on_weekends", v)}
+          label="Send on weekends too"
+          hint="Drafts and replies also go out on Saturday and Sunday, same send hours. Off: they wait for Monday."
         />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -185,7 +191,7 @@ function PrefsSection() {
         {num("daily_limit", "Daily limit", "most sends per day, all kinds")}
         {num("daily_applications", "Job applications per day", "follow-ups to them included")}
         {num("daily_pitches", "Project pitches per day", p.daily_applications + p.daily_pitches > p.daily_limit ? `together over the daily limit (${p.daily_limit}): the limit wins` : "agencies & funded startups, follow-ups included")}
-        {num("job_share_percent", "Job applications: min % of a day", "a pitch only goes while applications stay at least this share")}
+        {num("job_share_percent", "Job applications: min % of a day", "applications first; a pitch goes while they keep this share, or when no application is waiting. 0 = off")}
         {num("company_cooldown_days", "Company cooldown (days)", "one email per company")}
       </div>
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -223,6 +229,14 @@ function PrefsSection() {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div className="flex items-end pb-1.5">
           <Toggle checked={p.pipeline_enabled} onChange={(v) => set("pipeline_enabled", v)} label="Run daily" />
+        </div>
+        <div className="flex items-end pb-1.5">
+          <Toggle
+            checked={p.pipeline_on_weekends}
+            onChange={(v) => set("pipeline_on_weekends", v)}
+            label="Weekends too"
+            hint="Off: no run and no outbox refill on Saturday and Sunday"
+          />
         </div>
         {num("pipeline_hour", "Hour")}
         {num("pipeline_minute", "Minute")}
