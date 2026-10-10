@@ -254,20 +254,20 @@ function Pages({ data, index }: { data: Analytics; index: string }) {
         <div className="py-6 text-center text-sm text-subtle">No data yet.</div>
       ) : (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full table-fixed text-sm">
             <thead>
               <tr className="font-mono text-[10px] uppercase tracking-[0.14em] text-subtle">
                 <th className="pb-2 text-left font-normal">Page</th>
-                <th className="pb-2 text-right font-normal">Visits</th>
-                <th className="pb-2 text-right font-normal">Views</th>
-                <th className="pb-2 text-right font-normal">Time</th>
-                <th className="pb-2 text-right font-normal">Scrolled</th>
+                <th className="w-16 pb-2 text-right font-normal">Visits</th>
+                <th className="w-16 pb-2 text-right font-normal">Views</th>
+                <th className="w-20 pb-2 text-right font-normal">Time</th>
+                <th className="w-24 pb-2 text-right font-normal">Scrolled</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {rows.map((p) => (
                 <tr key={p.path ?? "?"}>
-                  <td className="max-w-[18rem] truncate py-2 font-mono text-fg-2">{p.path ?? "—"}</td>
+                  <td className="truncate py-2 pr-3 font-mono text-fg-2" title={p.path ?? undefined}>{p.path ?? "—"}</td>
                   <td className="py-2 text-right font-mono tabular-nums text-fg">{p.visits}</td>
                   <td className="py-2 text-right font-mono tabular-nums text-muted">{p.pageviews}</td>
                   <td className="py-2 text-right font-mono tabular-nums text-muted">{duration(p.avg_seconds)}</td>

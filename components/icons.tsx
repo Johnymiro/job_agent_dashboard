@@ -109,6 +109,7 @@ const PATHS = {
       <path d="M19 12H5" />
     </>
   ),
+  chevronLeft: <path d="m15 18-6-6 6-6" />,
   external: (
     <>
       <path d="M15 3h6v6" />

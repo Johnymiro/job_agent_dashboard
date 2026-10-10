@@ -246,7 +246,8 @@ export function OpportunityTable({ kind }: { kind: Kind }) {
         </Notice>
       )}
 
-      <Card className="mt-4 overflow-x-auto">
+      {/* columns show by the card's own width (not the viewport), so collapsing the sidebar brings more back */}
+      <Card className="@container mt-4">
         {isLoading && <div className="p-5"><Spinner /></div>}
         {isError && <Empty icon="alert">Could not load. Is the API running?</Empty>}
         {data && data.items.length === 0 && (
@@ -259,18 +260,19 @@ export function OpportunityTable({ kind }: { kind: Kind }) {
           </Empty>
         )}
         {data && data.items.length > 0 && (
-          <table className="w-full text-sm">
+          // fixed layout: the table always fits the card and long text truncates instead of scrolling sideways
+          <table className="w-full table-fixed text-sm">
             <thead className="border-b border-line bg-surface-2/50 text-left text-xs font-medium text-subtle">
               <tr>
-                <th className="w-14 px-4 py-2.5 font-medium">Score</th>
-                <th className="px-4 py-2.5 font-medium">{kind === "job" ? "Role" : "Lead"}</th>
-                <th className="hidden px-4 py-2.5 font-medium md:table-cell">Company</th>
-                <th className="hidden px-4 py-2.5 font-medium lg:table-cell">Where</th>
-                <th className="hidden px-4 py-2.5 font-medium xl:table-cell">{kind === "job" ? "Type" : "Est. value"}</th>
-                <th className="hidden px-4 py-2.5 font-medium xl:table-cell">Contact</th>
-                <th className="hidden px-4 py-2.5 font-medium sm:table-cell">Status</th>
-                <th className="hidden px-4 py-2.5 font-medium md:table-cell">Found</th>
-                <th className="px-4 py-2.5"><span className="sr-only">Actions</span></th>
+                <th className="w-16 py-2.5 pl-4 pr-3 font-medium">Score</th>
+                <th className="px-3 py-2.5 font-medium">{kind === "job" ? "Role" : "Lead"}</th>
+                <th className="hidden w-[13%] px-3 py-2.5 font-medium @3xl:table-cell">Company</th>
+                <th className="hidden w-[14%] px-3 py-2.5 font-medium @4xl:table-cell">Where</th>
+                <th className="hidden w-24 px-3 py-2.5 font-medium @5xl:table-cell">{kind === "job" ? "Type" : "Est. value"}</th>
+                <th className="hidden w-[15%] px-3 py-2.5 font-medium @7xl:table-cell">Contact</th>
+                <th className="hidden w-32 px-3 py-2.5 font-medium @xl:table-cell">Status</th>
+                <th className="hidden w-20 px-3 py-2.5 font-medium @3xl:table-cell">Found</th>
+                <th className="w-32 py-2.5 pl-3 pr-4"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -343,31 +345,35 @@ function Row({ o, kind, onOpen }: { o: Opportunity; kind: Kind; onOpen: () => vo
       tabIndex={0}
       className="cursor-pointer outline-none transition-colors hover:bg-surface-2/70 focus-visible:bg-surface-2"
     >
-      <td className="px-4 py-3 align-top sm:align-middle"><ScoreBadge score={o.score} /></td>
-      <td className="max-w-[340px] px-4 py-3">
-        <div className="truncate font-medium text-fg">{o.title}</div>
-        {/* on small screens the hidden columns collapse into this line */}
-        <div className="mt-0.5 flex items-center gap-2 truncate text-xs text-subtle md:hidden">
-          <span className="truncate">{o.company || "—"}</span>
+      <td className="py-3 pl-4 pr-3 align-top @xl:align-middle"><ScoreBadge score={o.score} /></td>
+      <td className="px-3 py-3">
+        <div className="truncate font-medium text-fg" title={o.title}>{o.title}</div>
+        {/* in a narrow card the hidden columns collapse into this line */}
+        <div className="mt-0.5 flex items-center gap-2 text-xs text-subtle @3xl:hidden">
+          <span className="min-w-0 truncate">{o.company || "—"}</span>
           <RegionBadge region={o.region} />
-          <span className="sm:hidden"><StatusBadge status={o.status} /></span>
+          <span className="@xl:hidden"><StatusBadge status={o.status} /></span>
         </div>
-        {o.signal && kind === "lead" && <div className="mt-0.5 hidden truncate text-xs text-subtle md:block">{o.signal}</div>}
+        {o.signal && kind === "lead" && (
+          <div className="mt-0.5 hidden truncate text-xs text-subtle @3xl:block" title={o.signal}>{o.signal}</div>
+        )}
       </td>
-      <td className="hidden max-w-[180px] truncate px-4 py-3 text-fg-2 md:table-cell">{o.company || "—"}</td>
-      <td className="hidden px-4 py-3 lg:table-cell">
+      <td className="hidden truncate px-3 py-3 text-fg-2 @3xl:table-cell" title={o.company || undefined}>{o.company || "—"}</td>
+      <td className="hidden px-3 py-3 @4xl:table-cell">
         <div className="flex items-center gap-2">
           <RegionBadge region={o.region} />
-          <span className="max-w-[150px] truncate text-xs text-subtle">{o.location}</span>
+          <span className="min-w-0 truncate text-xs text-subtle" title={o.location || undefined}>{o.location}</span>
         </div>
       </td>
-      <td className="hidden px-4 py-3 text-xs text-muted xl:table-cell">
+      <td className="hidden truncate px-3 py-3 text-xs text-muted @5xl:table-cell">
         {kind === "job" ? humanize(o.engagement || "—") : usd(o.est_value_usd)}
       </td>
-      <td className="hidden max-w-[200px] truncate px-4 py-3 text-xs text-muted xl:table-cell">{o.contact_email || "—"}</td>
-      <td className="hidden px-4 py-3 sm:table-cell"><StatusBadge status={o.status} /></td>
-      <td className="hidden whitespace-nowrap px-4 py-3 text-xs text-subtle md:table-cell">{timeAgo(o.found_at)}</td>
-      <td className="whitespace-nowrap px-4 py-3 text-right"><MarkAppliedButton o={o} kind={kind} /></td>
+      <td className="hidden truncate px-3 py-3 text-xs text-muted @7xl:table-cell" title={o.contact_email || undefined}>
+        {o.contact_email || "—"}
+      </td>
+      <td className="hidden px-3 py-3 @xl:table-cell"><StatusBadge status={o.status} /></td>
+      <td className="hidden whitespace-nowrap px-3 py-3 text-xs text-subtle @3xl:table-cell">{timeAgo(o.found_at)}</td>
+      <td className="whitespace-nowrap py-3 pl-3 pr-4 text-right"><MarkAppliedButton o={o} kind={kind} /></td>
     </tr>
   );
 }
