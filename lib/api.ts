@@ -108,6 +108,8 @@ export interface Application {
   opportunity_id: number;
   parent_id: number | null;
   kind: "application" | "pitch" | "followup" | "reply";
+  /** kind=reply written from your note: waits for your Send (never auto-sent) */
+  by_you?: boolean;
   status: string; // draft | needs_input | failed | sent | replied | bounced | skipped
   to_email: string;
   to_name: string | null;
@@ -423,6 +425,12 @@ export const previewApplication = (id: number, fields: EmailFields) =>
 export const answerApplication = (id: number, text: string) =>
   api
     .post<Application & { missing: string[] }>(`/api/applications/${id}/answer`, { text })
+    .then((r) => r.data);
+/** Your own reply in a thread they answered: the agent writes your note up as
+ *  a reply to their latest email. Returns that reply (unsent). */
+export const replyToThread = (id: number, text: string) =>
+  api
+    .post<Application & { missing: string[] }>(`/api/applications/${id}/reply`, { text })
     .then((r) => r.data);
 export const getMeetings = () =>
   api.get<{ upcoming: Meeting[]; past: Meeting[]; free: string[] }>("/api/meetings").then((r) => r.data);

@@ -18,6 +18,7 @@ import {
   getOpportunity,
   getStats,
   previewApplication,
+  replyToThread,
   updateApplication,
 } from "@/lib/api";
 import { Icon } from "@/components/icons";
@@ -114,6 +115,14 @@ export default function OutboxPage() {
     const i = items.findIndex((x) => x.id === id);
     const next = items[i + 1] || items[i - 1];
     setSelected(next && next.id !== id ? next.id : null);
+    setFlash(note);
+  };
+
+  /** Open the reply you just had written, in Ready to send where it now waits. */
+  const open = (id: number, note: string) => {
+    setTab(READY);
+    setChecked(new Set());
+    setSelected(id);
     setFlash(note);
   };
 
@@ -261,7 +270,7 @@ export default function OutboxPage() {
                   <div className="mt-1 truncate text-sm text-fg-2">{a.subject}</div>
                   <div className="mt-1.5 flex items-center gap-2 text-xs">
                     <StatusBadge status={a.status === "draft" ? "ready" : a.status} />
-                    <span className="text-subtle">{a.kind}</span>
+                    <span className="text-subtle">{a.kind}{a.by_you && " (yours)"}</span>
                     <span className="truncate text-subtle">{a.to_email}</span>
                     {a.reply_class && <ReplyTag cls={a.reply_class} />}
                     {a.portfolio && <VisitTag v={a.portfolio} />}
@@ -279,7 +288,7 @@ export default function OutboxPage() {
               <Button variant="subtle" size="sm" className="mb-3 xl:hidden" onClick={() => setSelected(null)}>
                 <Icon name="arrowLeft" className="h-3.5 w-3.5" /> Back to list
               </Button>
-              <Editor key={selected} id={selected} onDone={advance} />
+              <Editor key={selected} id={selected} onDone={advance} onOpen={open} />
             </>
           ) : (
             <Card>
@@ -333,7 +342,15 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-function Editor({ id, onDone }: { id: number; onDone: (id: number, note: string) => void }) {
+function Editor({
+  id,
+  onDone,
+  onOpen,
+}: {
+  id: number;
+  onDone: (id: number, note: string) => void;
+  onOpen: (id: number, note: string) => void;
+}) {
   const qc = useQueryClient();
   const { data: a, isLoading } = useQuery({ queryKey: ["app", id], queryFn: () => getApplication(id) });
   const [form, setForm] = useState<EmailFields | null>(null);
@@ -409,11 +426,14 @@ function Editor({ id, onDone }: { id: number; onDone: (id: number, note: string)
         </div>
         <div className="shrink-0 text-right">
           <StatusBadge status={a.status === "draft" ? "ready" : a.status} />
-          <div className="mt-1 text-xs text-subtle">{a.kind}{a.language ? ` · ${a.language}` : ""}</div>
+          <div className="mt-1 text-xs text-subtle">{a.kind}{a.by_you && " (yours)"}{a.language ? ` · ${a.language}` : ""}</div>
         </div>
       </div>
 
       {a.sent_at && <div className="mt-3 text-xs text-subtle">Sent {fmtTime(a.sent_at)}</div>}
+      {a.by_you && sendable && (
+        <div className="mt-3 text-xs text-subtle">Written from your note. Auto-reply never sends it: it goes when you press Send.</div>
+      )}
       {a.portfolio && <PortfolioVisits v={a.portfolio} />}
       {a.error && <div className="mt-3 rounded-lg border border-bad/25 bg-bad/5 px-3 py-2 text-xs text-bad">{a.error}</div>}
 
@@ -431,6 +451,7 @@ function Editor({ id, onDone }: { id: number; onDone: (id: number, note: string)
           <div className="whitespace-pre-wrap text-sm text-fg">{a.reply_snippet}</div>
         </div>
       )}
+      {a.status === "replied" && <ReplyBox app={a} onOpen={onOpen} />}
 
       <div className="mt-5 flex items-center gap-3">
         <Segmented
@@ -607,6 +628,50 @@ function AnswerBox({ app, onDone }: { app: Application; onDone: (d: Application)
           <Icon name="sparkles" className="h-3.5 w-3.5" /> Write the reply with my answer
         </Button>
         <span className="text-xs text-subtle">or edit the message yourself and press Send</span>
+      </div>
+      {msg && <div className="mt-2"><Msg msg={msg} /></div>}
+    </div>
+  );
+}
+
+/** Your own reply in a thread they answered (e.g. they said no and the agent
+ *  only thanked them, or didn't answer): you write what to say, the agent
+ *  writes it up as a reply to their latest email. It opens in Ready to send
+ *  and waits for your Send. */
+function ReplyBox({ app, onOpen }: { app: Application; onOpen: (id: number, note: string) => void }) {
+  const qc = useQueryClient();
+  const [text, setText] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const write = useMutation({
+    mutationFn: () => replyToThread(app.id, text),
+    onSuccess: (d) => {
+      qc.setQueryData(["app", d.id], d);
+      qc.invalidateQueries({ queryKey: ["apps"] });
+      qc.invalidateQueries({ queryKey: ["stats"] });
+      onOpen(d.id, d.missing.length ? "Reply written, but it still needs your answer" : "Reply written: check it, then press Send");
+    },
+    onError: (e) => setMsg({ ok: false, text: errorMessage(e) }),
+  });
+  const go = () => text.trim() && !write.isPending && write.mutate();
+  return (
+    <div className="mt-4 rounded-lg border border-accent/30 bg-accent/5 p-4">
+      <div className="text-sm font-medium text-fg">Your reply</div>
+      <p className="mt-0.5 text-xs text-subtle">
+        Write what you want to tell them, in your own words. The agent turns it into a reply to their latest email; you check it, then press Send.
+      </p>
+      <textarea
+        className={`${inputCls} mt-3 min-h-[90px] py-2 font-[inherit]`}
+        placeholder="e.g. no problem, thanks for the quick answer. If they need mobile help later I'm around."
+        value={text}
+        disabled={write.isPending}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && (e.metaKey || e.ctrlKey) && go()}
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button variant="primary" size="sm" busy={write.isPending} disabled={!text.trim()} onClick={go}>
+          <Icon name="sparkles" className="h-3.5 w-3.5" /> Write my reply
+        </Button>
+        <span className="text-xs text-subtle">Replaces the agent's unsent answer to that email, if there is one.</span>
       </div>
       {msg && <div className="mt-2"><Msg msg={msg} /></div>}
     </div>
