@@ -9,6 +9,7 @@ import {
   InboundEmail,
   Kind,
   PortfolioVisit,
+  ThreadItem,
   answerApplication,
   applicationAction,
   bulkApplications,
@@ -354,13 +355,13 @@ function Editor({
   const qc = useQueryClient();
   const { data: a, isLoading } = useQuery({ queryKey: ["app", id], queryFn: () => getApplication(id) });
   const [form, setForm] = useState<EmailFields | null>(null);
-  const [mode, setMode] = useState<"edit" | "preview" | "job" | null>(null);
+  const [mode, setMode] = useState<"thread" | "edit" | "preview" | "job" | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     if (!a) return;
     setForm({ to_email: a.to_email, to_name: a.to_name, subject: a.subject, body: a.body, attach_cv: a.attach_cv });
-    setMode((m) => m ?? (EDITABLE.includes(a.status) ? "edit" : "preview"));
+    setMode((m) => m ?? (EDITABLE.includes(a.status) ? "edit" : (a.thread?.length ?? 0) > 1 ? "thread" : "preview"));
   }, [a]);
 
   const refresh = (d: Application) => {
@@ -403,6 +404,9 @@ function Editor({
     form.body !== a.body ||
     form.attach_cv !== a.attach_cv;
   const busy = save.isPending || act.isPending;
+  // a conversation, not a lone email: they answered, or we did
+  const thread = a.thread || [];
+  const hasThread = thread.length > 1;
 
   return (
     <Card className="p-5 sm:p-6">
@@ -437,10 +441,10 @@ function Editor({
       {a.portfolio && <PortfolioVisits v={a.portfolio} />}
       {a.error && <div className="mt-3 rounded-lg border border-bad/25 bg-bad/5 px-3 py-2 text-xs text-bad">{a.error}</div>}
 
-      {a.inbound && <TheirEmail m={a.inbound} />}
+      {a.inbound && (editable || !hasThread) && <TheirEmail m={a.inbound} />}
       {a.status === "needs_input" && a.inbound && <AnswerBox app={a} onDone={refresh} />}
 
-      {a.reply_snippet && (
+      {a.reply_snippet && !hasThread && (
         <div className="mt-4 rounded-lg border border-plum/30 bg-plum/5 p-4">
           <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs">
             <Icon name="message" className="h-3.5 w-3.5 text-plum" />
@@ -451,13 +455,26 @@ function Editor({
           <div className="whitespace-pre-wrap text-sm text-fg">{a.reply_snippet}</div>
         </div>
       )}
-      {a.status === "replied" && <ReplyBox app={a} onOpen={onOpen} />}
+      {a.status === "replied" && !hasThread && <ReplyBox app={a} onOpen={onOpen} />}
 
       <div className="mt-5 flex items-center gap-3">
         <Segmented
           value={mode}
           onChange={setMode}
           options={[
+            ...(hasThread
+              ? [{
+                  value: "thread" as const,
+                  label: (
+                    <>
+                      <Icon name="message" className="h-3.5 w-3.5" />
+                      Conversation
+                      <span className="text-xs text-subtle">{thread.length}</span>
+                    </>
+                  ),
+                  title: "Every email in this thread, oldest first",
+                }]
+              : []),
             { value: "edit", label: "Edit" },
             { value: "preview", label: "Preview" },
             {
@@ -479,7 +496,12 @@ function Editor({
         )}
       </div>
 
-      {mode === "edit" ? (
+      {mode === "thread" ? (
+        <>
+          <Conversation items={thread} current={a.id} />
+          {a.status === "replied" && <ReplyBox app={a} onOpen={onOpen} />}
+        </>
+      ) : mode === "edit" ? (
         <>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="To (email)">
@@ -554,6 +576,54 @@ function Editor({
         msg && <div className="mt-3"><Msg msg={msg} /></div>
       )}
     </Card>
+  );
+}
+
+const KIND_LABEL: Record<string, string> = {
+  application: "application",
+  pitch: "pitch",
+  followup: "follow-up",
+};
+
+/** The whole thread, oldest first: what went out (or still waits to) and what
+ *  they wrote back. */
+function Conversation({ items, current }: { items: ThreadItem[]; current: number }) {
+  return (
+    <ol className="mt-4 space-y-3 border-l border-line pl-5">
+      {items.map((t) => {
+        const ours = t.who === "us";
+        const here = ours && t.id === current;
+        const unsent = ours && !t.at;
+        const what = !ours ? null : t.kind === "reply" ? (t.by_you ? "your reply" : "agent's reply") : KIND_LABEL[t.kind || ""] || t.kind;
+        return (
+          <li key={`${t.who}-${t.id}`} className="relative">
+            <span
+              className={`absolute -left-[25.5px] top-4 h-2.5 w-2.5 rounded-full ring-4 ring-surface ${
+                ours ? (unsent ? "border border-subtle bg-surface" : "bg-accent") : "bg-plum"
+              }`}
+            />
+            <div
+              className={`rounded-lg border p-4 ${ours ? "border-line bg-surface-2/40" : "border-plum/30 bg-plum/5"} ${
+                here ? "ring-1 ring-accent/50" : ""
+              } ${unsent ? "border-dashed" : ""}`}
+            >
+              <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                <Icon name={ours ? "send" : "message"} className={`h-3.5 w-3.5 ${ours ? "text-accent" : "text-plum"}`} />
+                <span className="font-medium text-fg-2">{ours ? "You" : t.from_name || t.from_email}</span>
+                {ours ? <span className="text-subtle">{what} · to {t.to_email}</span> : t.from_name && <span className="text-subtle">{t.from_email}</span>}
+                <span className="text-subtle">· {unsent ? "not sent yet" : fmtTime(t.at)}</span>
+                {ours && t.status && !["sent", "replied"].includes(t.status) && (
+                  <StatusBadge status={t.status === "draft" ? "ready" : t.status} />
+                )}
+                {here && <span className="ml-auto font-medium text-accent">this email</span>}
+              </div>
+              {t.subject && <div className="mb-1 text-xs font-medium text-muted">{t.subject}</div>}
+              <div className="max-h-72 overflow-y-auto whitespace-pre-wrap text-sm text-fg">{t.body}</div>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

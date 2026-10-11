@@ -135,6 +135,23 @@ export interface Application {
   body?: string;
   reply_subject?: string | null;
   inbound?: InboundEmail | null; // kind=reply: the email this answers
+  thread?: ThreadItem[]; // the whole conversation, oldest first
+}
+
+/** One email in a conversation: ours (sent, or still waiting to go) or theirs. */
+export interface ThreadItem {
+  who: "us" | "them";
+  id: number; // application id (us) or message id (them)
+  kind?: Application["kind"];
+  status?: string;
+  by_you?: boolean;
+  intent?: string | null;
+  from_email: string | null;
+  from_name: string | null;
+  to_email?: string;
+  subject: string | null;
+  body: string | null;
+  at: string | null; // sent / received; null = not sent yet
 }
 
 /** Their email that one of our replies answers. */
