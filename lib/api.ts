@@ -296,6 +296,9 @@ export interface Prefs {
   us_min_salary_usd: number;
   us_min_project_usd: number;
   lead_min_value_usd: number;
+  min_salary_usd: number;
+  high_pay_bonus: number;
+  high_pay_usd: number;
   max_age_days: number;
   allow_guessed_emails: boolean;
   job_generic_inbox: boolean;

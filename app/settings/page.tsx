@@ -215,6 +215,9 @@ function PrefsSection() {
         {num("us_min_salary_usd", "US: min salary ($)")}
         {num("us_min_project_usd", "US: min project ($)")}
         {num("max_age_days", "Ignore postings older than (days)")}
+        {num("min_salary_usd", "Min salary ($/yr)", "jobs paying less are skipped; 0 = off")}
+        {num("high_pay_bonus", "Well-paid first: bonus", "added to the score for UK/IE/DACH/Benelux/Nordics/US work or high pay; 0 = off")}
+        {num("high_pay_usd", "High pay from ($/yr)", "a stated salary this high gets the bonus")}
       </div>
       <div className="mt-4">
         <Toggle
