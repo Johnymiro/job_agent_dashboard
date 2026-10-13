@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Analytics, LeadVisit, errorMessage, getAnalytics } from "@/lib/api";
+import { Analytics, LeadVisit, errorMessage, getAnalytics, getApplication } from "@/lib/api";
+import { DrawerShell, OpportunityDrawer } from "@/components/OpportunityTable";
 import {
   Card,
   Empty,
+  Msg,
   Notice,
   PageHeader,
   PanelTitle,
@@ -284,6 +286,7 @@ function Pages({ data, index }: { data: Analytics; index: string }) {
 
 /** Sent emails whose portfolio link was opened (the ?r= ref on the link). */
 function LeadVisits({ leads, index }: { leads: LeadVisit[]; index: string }) {
+  const [openId, setOpenId] = useState<number | null>(null);
   return (
     <Card>
       <div className="px-5 pt-5 sm:px-6 sm:pt-6">
@@ -301,7 +304,15 @@ function LeadVisits({ leads, index }: { leads: LeadVisit[]; index: string }) {
       ) : (
         <div className="mt-3 divide-y divide-line">
           {leads.map((l) => (
-            <div key={l.application.id} className="px-5 py-4 sm:px-6">
+            <div
+              key={l.application.id}
+              role="button"
+              tabIndex={0}
+              title="Open the job, its description and the emails"
+              onClick={() => setOpenId(l.application.id)}
+              onKeyDown={(e) => e.key === "Enter" && setOpenId(l.application.id)}
+              className="cursor-pointer px-5 py-4 outline-none transition-colors hover:bg-surface-2/70 focus-visible:bg-surface-2 sm:px-6"
+            >
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="font-medium text-fg">{l.application.company || l.application.to_email}</span>
                 <span className="text-xs text-subtle">{l.application.kind}</span>
@@ -339,6 +350,19 @@ function LeadVisits({ leads, index }: { leads: LeadVisit[]; index: string }) {
           ))}
         </div>
       )}
+      {openId !== null && <LeadDrawer emailId={openId} onClose={() => setOpenId(null)} />}
     </Card>
+  );
+}
+
+/** The job (or lead) behind a sent email, with that email's conversation. The
+ *  visit only knows the email, so the email says which job it's for. */
+function LeadDrawer({ emailId, onClose }: { emailId: number; onClose: () => void }) {
+  const { data: a, error } = useQuery({ queryKey: ["app", emailId], queryFn: () => getApplication(emailId) });
+  if (a) return <OpportunityDrawer id={a.opportunity_id} emailId={emailId} onClose={onClose} />;
+  return (
+    <DrawerShell label="" onClose={onClose}>
+      {error ? <Msg msg={{ ok: false, text: errorMessage(error) }} /> : <Spinner />}
+    </DrawerShell>
   );
 }

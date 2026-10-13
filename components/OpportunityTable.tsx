@@ -12,12 +12,14 @@ import {
   draftOpportunity,
   enrichOpportunity,
   errorMessage,
+  getApplication,
   getOpportunities,
   getOpportunity,
   getStats,
   setOpportunityStatus,
   startRun,
 } from "@/lib/api";
+import { Conversation } from "@/components/Conversation";
 import { Icon } from "@/components/icons";
 import {
   Button,
@@ -298,7 +300,7 @@ export function OpportunityTable({ kind }: { kind: Kind }) {
         </div>
       )}
 
-      {openId !== null && <Drawer id={openId} onClose={() => setOpenId(null)} />}
+      {openId !== null && <OpportunityDrawer id={openId} onClose={() => setOpenId(null)} />}
     </>
   );
 }
@@ -308,7 +310,7 @@ const CONTACTED = new Set(["applied", "replied", "interview", "won", "closed"]);
 
 /** For jobs you applied to on their website (or leads you contacted yourself):
  *  marks it applied and starts the company cooldown so the app won't email them. */
-function MarkAppliedButton({ o, kind }: { o: Opportunity; kind: Kind }) {
+export function MarkAppliedButton({ o, kind }: { o: Opportunity; kind: Kind }) {
   const qc = useQueryClient();
   const mark = useMutation({
     mutationFn: () => setOpportunityStatus(o.id, "applied"),
@@ -378,17 +380,41 @@ function Row({ o, kind, onOpen }: { o: Opportunity; kind: Kind; onOpen: () => vo
   );
 }
 
-function Drawer({ id, onClose }: { id: number; onClose: () => void }) {
-  const qc = useQueryClient();
-  const { data: o, isLoading } = useQuery({ queryKey: ["opp", id], queryFn: () => getOpportunity(id) });
-  const [email, setEmail] = useState("");
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
+/** The side panel the drawer opens in: closes on Esc, the backdrop or Close. */
+export function DrawerShell({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-[1px]" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex h-full w-full max-w-2xl flex-col border-l border-line bg-surface shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-line px-5 py-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-subtle">{label}</span>
+          <Button variant="subtle" size="sm" onClick={onClose} title="Close (Esc)">
+            <Icon name="x" className="h-3.5 w-3.5" /> Close
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/** A job or lead in full. `emailId`: opened from one of our emails (the
+ *  Portfolio's visits), so that email's whole conversation shows too. */
+export function OpportunityDrawer({ id, emailId, onClose }: { id: number; emailId?: number; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: o, isLoading } = useQuery({ queryKey: ["opp", id], queryFn: () => getOpportunity(id) });
+  const [email, setEmail] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const refresh = (d?: OpportunityDetail) => {
     if (d) qc.setQueryData(["opp", id], d);
@@ -433,146 +459,133 @@ function Drawer({ id, onClose }: { id: number; onClose: () => void }) {
   const toApply = o?.status === "apply";
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-[1px]" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="flex h-full w-full max-w-2xl flex-col border-l border-line bg-surface shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-line px-5 py-3">
-          <span className="text-xs font-medium uppercase tracking-wide text-subtle">{kindLabel(o)}</span>
-          <Button variant="subtle" size="sm" onClick={onClose} title="Close (Esc)">
-            <Icon name="x" className="h-3.5 w-3.5" /> Close
-          </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6">
-          {isLoading || !o ? (
-            <Spinner />
-          ) : (
-            <>
-              <div className="flex items-start gap-3">
-                <ScoreBadge score={o.score} />
-                <div className="min-w-0">
-                  <h2 className="text-lg font-semibold leading-snug text-fg">{o.title}</h2>
-                  <div className="mt-1 text-sm text-muted">
-                    <span className="font-medium text-fg-2">{o.company || "Unknown company"}</span> · <OpportunityFacts o={o} />
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                    <StatusBadge status={o.status} />
-                    <span className="text-subtle">{o.source}</span>
-                    {o.est_value_usd ? <span className="text-muted">est. {usd(o.est_value_usd)}</span> : null}
-                    {o.status_note && <span className="text-subtle">— {o.status_note}</span>}
-                  </div>
-                </div>
+    <DrawerShell label={kindLabel(o)} onClose={onClose}>
+      {isLoading || !o ? (
+        <Spinner />
+      ) : (
+        <>
+          <div className="flex items-start gap-3">
+            <ScoreBadge score={o.score} />
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold leading-snug text-fg">{o.title}</h2>
+              <div className="mt-1 text-sm text-muted">
+                <span className="font-medium text-fg-2">{o.company || "Unknown company"}</span> · <OpportunityFacts o={o} />
               </div>
-
-              <div className="mt-5 flex flex-wrap items-center gap-2">
-                {toApply && (o.apply_url || o.url) && (
-                  <a className={buttonClass("primary")} href={o.apply_url || o.url || "#"} target="_blank" rel="noreferrer">
-                    Apply on their site <Icon name="external" className="h-3.5 w-3.5" />
-                  </a>
-                )}
-                <Button
-                  variant={toApply ? "ghost" : "primary"}
-                  busy={draft.isPending}
-                  onClick={() => draft.mutate(undefined)}
-                  disabled={!hasEmail}
-                  title={hasEmail ? "Let the AI draft an email — it waits in the Outbox for you" : "Find or add an email first"}
-                >
-                  <Icon name="sparkles" className="h-3.5 w-3.5" /> Write email
-                </Button>
-                <Button busy={enrich.isPending} onClick={() => enrich.mutate()}>
-                  <Icon name="search" className="h-3.5 w-3.5" /> Find email
-                </Button>
-                {!toApply && (o.apply_url || o.url) && (
-                  <a className={buttonClass()} href={o.apply_url || o.url || "#"} target="_blank" rel="noreferrer">
-                    Posting <Icon name="external" className="h-3.5 w-3.5" />
-                  </a>
-                )}
-                {o.website && (
-                  <a className={buttonClass()} href={o.website} target="_blank" rel="noreferrer">
-                    Website <Icon name="external" className="h-3.5 w-3.5" />
-                  </a>
-                )}
-                <select
-                  aria-label="Mark as"
-                  className={`${controlCls} w-auto`}
-                  value=""
-                  onChange={(e) => e.target.value && status.mutate(e.target.value)}
-                >
-                  <option value="">Mark as…</option>
-                  {!CONTACTED.has(o.status) && (
-                    <option value="applied">{o.kind === "job" ? "Applied on their website" : "Contacted (outside the app)"}</option>
-                  )}
-                  {o.kind === "job" && !toApply && <option value="apply">To apply on their site</option>}
-                  <option value="interview">Interview</option>
-                  <option value="won">Won</option>
-                  <option value="closed">Closed / rejected</option>
-                  <option value="skipped">Skip</option>
-                  <option value="ready">Ready (re-open)</option>
-                </select>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <StatusBadge status={o.status} />
+                <span className="text-subtle">{o.source}</span>
+                {o.est_value_usd ? <span className="text-muted">est. {usd(o.est_value_usd)}</span> : null}
+                {o.status_note && <span className="text-subtle">— {o.status_note}</span>}
               </div>
-              {msg && <div className="mt-3"><Msg msg={msg} /></div>}
+            </div>
+          </div>
 
-              {o.kind === "job" && (o.apply_url || o.url) && <CoverNotePanel id={o.id} />}
-
-              <MatchReasons o={o} className="mt-6" />
-
-              <div className="mt-6">
-                <Label className="mb-2">Contacts</Label>
-                {o.contacts.length === 0 && !o.contact_email && (
-                  <div className="text-sm text-subtle">No email yet — try “Find email”, or add one you found yourself.</div>
-                )}
-                <div className="divide-y divide-line">
-                  {o.contacts.map((c) => (
-                    <div key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
-                      <span className={c.suppressed ? "text-faint line-through" : "text-fg"}>{c.email}</span>
-                      <span className="text-xs text-subtle">{c.source} · {Math.round(c.confidence * 100)}%</span>
-                      {!c.suppressed && (
-                        <button className="ml-auto text-xs font-medium text-accent hover:underline" onClick={() => draft.mutate(c.id)}>
-                          Write to this →
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {o.contacts.length === 0 && o.contact_email && (
-                    <div className="py-2 text-sm text-fg">{o.contact_email} <span className="text-xs text-subtle">from posting</span></div>
-                  )}
-                </div>
-                <form
-                  className="mt-3 flex gap-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (email) addContact.mutate();
-                  }}
-                >
-                  <input className={inputCls} placeholder="Add an email you found yourself…" value={email} onChange={(e) => setEmail(e.target.value)} />
-                  <Button busy={addContact.isPending} type="submit">Add</Button>
-                </form>
-              </div>
-
-              {o.applications.length > 0 && (
-                <div className="mt-6">
-                  <Label className="mb-2">Emails</Label>
-                  <div className="divide-y divide-line">
-                    {o.applications.map((a) => (
-                      <Link key={a.id} href={`/outbox?id=${a.id}`} className="group flex items-center gap-3 py-2 text-sm">
-                        <StatusBadge status={a.status === "draft" ? "ready" : a.status} />
-                        <span className="truncate text-fg-2 group-hover:text-fg group-hover:underline">{a.subject}</span>
-                        <span className="ml-auto text-xs text-subtle">{a.kind}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            {toApply && (o.apply_url || o.url) && (
+              <a className={buttonClass("primary")} href={o.apply_url || o.url || "#"} target="_blank" rel="noreferrer">
+                Apply on their site <Icon name="external" className="h-3.5 w-3.5" />
+              </a>
+            )}
+            <Button
+              variant={toApply ? "ghost" : "primary"}
+              busy={draft.isPending}
+              onClick={() => draft.mutate(undefined)}
+              disabled={!hasEmail}
+              title={hasEmail ? "Let the AI draft an email — it waits in the Outbox for you" : "Find or add an email first"}
+            >
+              <Icon name="sparkles" className="h-3.5 w-3.5" /> Write email
+            </Button>
+            <Button busy={enrich.isPending} onClick={() => enrich.mutate()}>
+              <Icon name="search" className="h-3.5 w-3.5" /> Find email
+            </Button>
+            {!toApply && (o.apply_url || o.url) && (
+              <a className={buttonClass()} href={o.apply_url || o.url || "#"} target="_blank" rel="noreferrer">
+                Posting <Icon name="external" className="h-3.5 w-3.5" />
+              </a>
+            )}
+            {o.website && (
+              <a className={buttonClass()} href={o.website} target="_blank" rel="noreferrer">
+                Website <Icon name="external" className="h-3.5 w-3.5" />
+              </a>
+            )}
+            <select
+              aria-label="Mark as"
+              className={`${controlCls} w-auto`}
+              value=""
+              onChange={(e) => e.target.value && status.mutate(e.target.value)}
+            >
+              <option value="">Mark as…</option>
+              {!CONTACTED.has(o.status) && (
+                <option value="applied">{o.kind === "job" ? "Applied on their website" : "Contacted (outside the app)"}</option>
               )}
+              {o.kind === "job" && !toApply && <option value="apply">To apply on their site</option>}
+              <option value="interview">Interview</option>
+              <option value="won">Won</option>
+              <option value="closed">Closed / rejected</option>
+              <option value="skipped">Skip</option>
+              <option value="ready">Ready (re-open)</option>
+            </select>
+          </div>
+          {msg && <div className="mt-3"><Msg msg={msg} /></div>}
 
-              <OpportunityDescription o={o} className="mt-6" />
-            </>
+          {emailId !== undefined && <EmailThread id={emailId} className="mt-6" />}
+
+          {o.kind === "job" && (o.apply_url || o.url) && <CoverNotePanel id={o.id} />}
+
+          <MatchReasons o={o} className="mt-6" />
+
+          <div className="mt-6">
+            <Label className="mb-2">Contacts</Label>
+            {o.contacts.length === 0 && !o.contact_email && (
+              <div className="text-sm text-subtle">No email yet — try “Find email”, or add one you found yourself.</div>
+            )}
+            <div className="divide-y divide-line">
+              {o.contacts.map((c) => (
+                <div key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+                  <span className={c.suppressed ? "text-faint line-through" : "text-fg"}>{c.email}</span>
+                  <span className="text-xs text-subtle">{c.source} · {Math.round(c.confidence * 100)}%</span>
+                  {!c.suppressed && (
+                    <button className="ml-auto text-xs font-medium text-accent hover:underline" onClick={() => draft.mutate(c.id)}>
+                      Write to this →
+                    </button>
+                  )}
+                </div>
+              ))}
+              {o.contacts.length === 0 && o.contact_email && (
+                <div className="py-2 text-sm text-fg">{o.contact_email} <span className="text-xs text-subtle">from posting</span></div>
+              )}
+            </div>
+            <form
+              className="mt-3 flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (email) addContact.mutate();
+              }}
+            >
+              <input className={inputCls} placeholder="Add an email you found yourself…" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Button busy={addContact.isPending} type="submit">Add</Button>
+            </form>
+          </div>
+
+          {o.applications.length > 0 && (
+            <div className="mt-6">
+              <Label className="mb-2">Emails</Label>
+              <div className="divide-y divide-line">
+                {o.applications.map((a) => (
+                  <Link key={a.id} href={`/outbox?id=${a.id}`} className="group flex items-center gap-3 py-2 text-sm">
+                    <StatusBadge status={a.status === "draft" ? "ready" : a.status} />
+                    <span className="truncate text-fg-2 group-hover:text-fg group-hover:underline">{a.subject}</span>
+                    <span className="ml-auto text-xs text-subtle">{a.kind}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-    </div>
+
+          <OpportunityDescription o={o} className="mt-6" />
+        </>
+      )}
+    </DrawerShell>
   );
 }
 
@@ -610,6 +623,32 @@ function CoverNotePanel({ id }: { id: number }) {
       )}
       {note.data && (
         <textarea className={`${inputCls} mt-3 min-h-[200px]`} defaultValue={note.data.body} key={note.data.body} />
+      )}
+    </div>
+  );
+}
+
+/** One email's whole conversation, oldest first: what we sent and what they
+ *  wrote back. Replying and editing stay in the Outbox. */
+function EmailThread({ id, className = "" }: { id: number; className?: string }) {
+  const { data: a, error } = useQuery({ queryKey: ["app", id], queryFn: () => getApplication(id) });
+  const thread = a?.thread || [];
+  return (
+    <div className={className}>
+      <div className="mb-2 flex items-center gap-2">
+        <Label className="flex-1">
+          Conversation{thread.length > 0 && <span className="ml-1.5 font-normal text-subtle">{thread.length}</span>}
+        </Label>
+        <Link href={`/outbox?id=${id}`} className="text-xs font-medium text-accent hover:underline">
+          Open in Outbox →
+        </Link>
+      </div>
+      {error ? (
+        <Msg msg={{ ok: false, text: errorMessage(error) }} />
+      ) : !a ? (
+        <Spinner />
+      ) : (
+        <Conversation items={thread} current={id} className="" />
       )}
     </div>
   );

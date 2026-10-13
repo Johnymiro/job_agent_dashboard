@@ -9,20 +9,22 @@ import {
   InboundEmail,
   Kind,
   PortfolioVisit,
-  ThreadItem,
   answerApplication,
   applicationAction,
   bulkApplications,
   errorMessage,
   getApplication,
   getApplications,
+  getOpportunities,
   getOpportunity,
   getStats,
   previewApplication,
   replyToThread,
   updateApplication,
 } from "@/lib/api";
+import { Conversation } from "@/components/Conversation";
 import { Icon } from "@/components/icons";
+import { ManualApply } from "@/components/ManualApply";
 import { MatchReasons, OpportunityDescription, OpportunityFacts } from "@/components/OpportunityTable";
 import {
   Button,
@@ -47,8 +49,11 @@ import {
 } from "@/components/ui";
 
 const READY = "draft,failed,needs_input";
+// not emails: well-paid jobs to apply to on their own site (job applications only)
+const MANUAL = "manual_apply";
 const TABS: [string, string][] = [
   [READY, "Ready to send"],
+  [MANUAL, "Manually apply"],
   ["sent", "Sent"],
   ["replied", "Replied"],
   ["bounced", "Bounced"],
@@ -91,10 +96,18 @@ export default function OutboxPage() {
     return () => clearTimeout(t);
   }, [flash]);
 
+  const manual = tab === MANUAL;
   const { data, isLoading } = useQuery({
     queryKey: ["apps", type, tab, q],
     queryFn: () => getApplications({ opp_kind: type, status: tab || undefined, q: q || undefined, limit: 200 }),
     refetchInterval: 30_000,
+    enabled: !manual,
+  });
+  // the Manually apply tab's count: well-paid jobs waiting for you on their site
+  const { data: toApply } = useQuery({
+    queryKey: ["opps", "manual-apply-count"],
+    queryFn: () => getOpportunities({ kind: "job", status: "apply", high_pay: true, limit: 1 }),
+    refetchInterval: 60_000,
   });
   const { data: stats } = useQuery({ queryKey: ["stats"], queryFn: getStats, refetchInterval: 30_000 });
 
@@ -128,6 +141,7 @@ export default function OutboxPage() {
   };
 
   const count = (v: string, kind: Kind = type) => {
+    if (v === MANUAL) return toApply?.total || 0;
     const byStatus = stats?.applications_by_kind?.[kind] || {};
     return v.split(",").reduce((n, s) => n + (byStatus[s] || 0), 0);
   };
@@ -169,6 +183,7 @@ export default function OutboxPage() {
           value={type}
           onChange={(v) => {
             setType(v);
+            if (v !== "job" && manual) setTab(READY);
             setSelected(null);
             setChecked(new Set());
           }}
@@ -195,109 +210,117 @@ export default function OutboxPage() {
             setTab(v);
             setChecked(new Set());
           }}
-          options={TABS.map(([value, label]) => ({ value, label, count: count(value) }))}
+          options={TABS.filter(([value]) => type === "job" || value !== MANUAL).map(([value, label]) => ({
+            value,
+            label,
+            count: count(value),
+          }))}
         />
         <SearchInput
           className="w-full sm:ml-auto sm:w-64"
-          placeholder="Search company, subject, email…"
+          placeholder={manual ? "Search company, role, location…" : "Search company, subject, email…"}
           value={q}
           onChange={setQ}
         />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        {/* on small screens: list OR editor; side by side from xl */}
-        <Card className={`flex max-h-[calc(100vh-200px)] flex-col overflow-hidden ${selected ? "hidden xl:flex" : ""}`}>
-          {items.length > 0 && (
-            <div className="flex items-center gap-3 border-b border-line bg-surface-2/50 px-4 py-2 text-xs text-subtle">
-              <input
-                type="checkbox"
-                aria-label="Select all"
-                checked={allChecked}
-                onChange={() => setChecked(allChecked ? new Set() : new Set(items.map((a) => a.id)))}
-              />
-              {checked.size > 0 ? (
-                <>
-                  <span className="font-medium text-fg-2">{checked.size} selected</span>
-                  <span className="ml-auto flex gap-1.5">
-                    <Button size="sm" variant="danger" busy={bulk.isPending} onClick={() => bulk.mutate("skip")}>Skip</Button>
-                    <Button size="sm" busy={bulk.isPending} onClick={() => bulk.mutate("restore")}>Restore</Button>
-                  </span>
-                </>
-              ) : (
-                <span>{data?.total} emails{tab === READY && " · best match first"}</span>
-              )}
-            </div>
-          )}
-          <div className="flex-1 divide-y divide-line overflow-y-auto">
-            {isLoading && <div className="p-5"><Spinner /></div>}
-            {!isLoading && items.length === 0 && (
-              <Empty icon={tab === READY ? "check" : "mail"}>
-                {tab === READY ? "All caught up — new drafts arrive after the daily pipeline run." : "No emails here."}
-              </Empty>
-            )}
-            {items.map((a) => (
-              <div
-                key={a.id}
-                onClick={() => setSelected(a.id)}
-                onKeyDown={(e) => e.key === "Enter" && setSelected(a.id)}
-                tabIndex={0}
-                className={`relative flex cursor-pointer gap-3 px-4 py-3 outline-none transition-colors focus-visible:bg-surface-2 ${
-                  selected === a.id ? "bg-accent/5" : "hover:bg-surface-2/70"
-                }`}
-              >
-                {selected === a.id && <span className="absolute inset-y-0 left-0 w-0.5 bg-accent" />}
+      {manual ? (
+        <ManualApply q={q} />
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          {/* on small screens: list OR editor; side by side from xl */}
+          <Card className={`flex max-h-[calc(100vh-200px)] flex-col overflow-hidden ${selected ? "hidden xl:flex" : ""}`}>
+            {items.length > 0 && (
+              <div className="flex items-center gap-3 border-b border-line bg-surface-2/50 px-4 py-2 text-xs text-subtle">
                 <input
                   type="checkbox"
-                  className="mt-1"
-                  aria-label="Select"
-                  checked={checked.has(a.id)}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={() => {
-                    const next = new Set(checked);
-                    if (next.has(a.id)) next.delete(a.id);
-                    else next.add(a.id);
-                    setChecked(next);
-                  }}
+                  aria-label="Select all"
+                  checked={allChecked}
+                  onChange={() => setChecked(allChecked ? new Set() : new Set(items.map((a) => a.id)))}
                 />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <ScoreBadge score={a.score} />
-                    <span className="truncate text-sm font-medium text-fg">{a.company || a.to_email}</span>
-                    <span className="ml-auto shrink-0 text-xs text-subtle">
-                      {timeAgo(a.replied_at || a.sent_at || a.created_at)}
+                {checked.size > 0 ? (
+                  <>
+                    <span className="font-medium text-fg-2">{checked.size} selected</span>
+                    <span className="ml-auto flex gap-1.5">
+                      <Button size="sm" variant="danger" busy={bulk.isPending} onClick={() => bulk.mutate("skip")}>Skip</Button>
+                      <Button size="sm" busy={bulk.isPending} onClick={() => bulk.mutate("restore")}>Restore</Button>
                     </span>
-                  </div>
-                  <div className="mt-1 truncate text-sm text-fg-2">{a.subject}</div>
-                  <div className="mt-1.5 flex items-center gap-2 text-xs">
-                    <StatusBadge status={a.status === "draft" ? "ready" : a.status} />
-                    <span className="text-subtle">{a.kind}{a.by_you && " (yours)"}</span>
-                    <span className="truncate text-subtle">{a.to_email}</span>
-                    {a.reply_class && <ReplyTag cls={a.reply_class} />}
-                    {a.portfolio && <VisitTag v={a.portfolio} />}
-                    {a.error && <span className="truncate text-bad">{a.error}</span>}
+                  </>
+                ) : (
+                  <span>{data?.total} emails{tab === READY && " · best match first"}</span>
+                )}
+              </div>
+            )}
+            <div className="flex-1 divide-y divide-line overflow-y-auto">
+              {isLoading && <div className="p-5"><Spinner /></div>}
+              {!isLoading && items.length === 0 && (
+                <Empty icon={tab === READY ? "check" : "mail"}>
+                  {tab === READY ? "All caught up — new drafts arrive after the daily pipeline run." : "No emails here."}
+                </Empty>
+              )}
+              {items.map((a) => (
+                <div
+                  key={a.id}
+                  onClick={() => setSelected(a.id)}
+                  onKeyDown={(e) => e.key === "Enter" && setSelected(a.id)}
+                  tabIndex={0}
+                  className={`relative flex cursor-pointer gap-3 px-4 py-3 outline-none transition-colors focus-visible:bg-surface-2 ${
+                    selected === a.id ? "bg-accent/5" : "hover:bg-surface-2/70"
+                  }`}
+                >
+                  {selected === a.id && <span className="absolute inset-y-0 left-0 w-0.5 bg-accent" />}
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    aria-label="Select"
+                    checked={checked.has(a.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => {
+                      const next = new Set(checked);
+                      if (next.has(a.id)) next.delete(a.id);
+                      else next.add(a.id);
+                      setChecked(next);
+                    }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <ScoreBadge score={a.score} />
+                      <span className="truncate text-sm font-medium text-fg">{a.company || a.to_email}</span>
+                      <span className="ml-auto shrink-0 text-xs text-subtle">
+                        {timeAgo(a.replied_at || a.sent_at || a.created_at)}
+                      </span>
+                    </div>
+                    <div className="mt-1 truncate text-sm text-fg-2">{a.subject}</div>
+                    <div className="mt-1.5 flex items-center gap-2 text-xs">
+                      <StatusBadge status={a.status === "draft" ? "ready" : a.status} />
+                      <span className="text-subtle">{a.kind}{a.by_you && " (yours)"}</span>
+                      <span className="truncate text-subtle">{a.to_email}</span>
+                      {a.reply_class && <ReplyTag cls={a.reply_class} />}
+                      {a.portfolio && <VisitTag v={a.portfolio} />}
+                      {a.error && <span className="truncate text-bad">{a.error}</span>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+              ))}
+            </div>
+          </Card>
 
-        <div className={selected ? "" : "hidden xl:block"}>
-          {selected ? (
-            <>
-              <Button variant="subtle" size="sm" className="mb-3 xl:hidden" onClick={() => setSelected(null)}>
-                <Icon name="arrowLeft" className="h-3.5 w-3.5" /> Back to list
-              </Button>
-              <Editor key={selected} id={selected} onDone={advance} onOpen={open} />
-            </>
-          ) : (
-            <Card>
-              <Empty icon="mail">Select an email to review and send it.</Empty>
-            </Card>
-          )}
+          <div className={selected ? "" : "hidden xl:block"}>
+            {selected ? (
+              <>
+                <Button variant="subtle" size="sm" className="mb-3 xl:hidden" onClick={() => setSelected(null)}>
+                  <Icon name="arrowLeft" className="h-3.5 w-3.5" /> Back to list
+                </Button>
+                <Editor key={selected} id={selected} onDone={advance} onOpen={open} />
+              </>
+            ) : (
+              <Card>
+                <Empty icon="mail">Select an email to review and send it.</Empty>
+              </Card>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -576,54 +599,6 @@ function Editor({
         msg && <div className="mt-3"><Msg msg={msg} /></div>
       )}
     </Card>
-  );
-}
-
-const KIND_LABEL: Record<string, string> = {
-  application: "application",
-  pitch: "pitch",
-  followup: "follow-up",
-};
-
-/** The whole thread, oldest first: what went out (or still waits to) and what
- *  they wrote back. */
-function Conversation({ items, current }: { items: ThreadItem[]; current: number }) {
-  return (
-    <ol className="mt-4 space-y-3 border-l border-line pl-5">
-      {items.map((t) => {
-        const ours = t.who === "us";
-        const here = ours && t.id === current;
-        const unsent = ours && !t.at;
-        const what = !ours ? null : t.kind === "reply" ? (t.by_you ? "your reply" : "agent's reply") : KIND_LABEL[t.kind || ""] || t.kind;
-        return (
-          <li key={`${t.who}-${t.id}`} className="relative">
-            <span
-              className={`absolute -left-[25.5px] top-4 h-2.5 w-2.5 rounded-full ring-4 ring-surface ${
-                ours ? (unsent ? "border border-subtle bg-surface" : "bg-accent") : "bg-plum"
-              }`}
-            />
-            <div
-              className={`rounded-lg border p-4 ${ours ? "border-line bg-surface-2/40" : "border-plum/30 bg-plum/5"} ${
-                here ? "ring-1 ring-accent/50" : ""
-              } ${unsent ? "border-dashed" : ""}`}
-            >
-              <div className="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-                <Icon name={ours ? "send" : "message"} className={`h-3.5 w-3.5 ${ours ? "text-accent" : "text-plum"}`} />
-                <span className="font-medium text-fg-2">{ours ? "You" : t.from_name || t.from_email}</span>
-                {ours ? <span className="text-subtle">{what} · to {t.to_email}</span> : t.from_name && <span className="text-subtle">{t.from_email}</span>}
-                <span className="text-subtle">· {unsent ? "not sent yet" : fmtTime(t.at)}</span>
-                {ours && t.status && !["sent", "replied"].includes(t.status) && (
-                  <StatusBadge status={t.status === "draft" ? "ready" : t.status} />
-                )}
-                {here && <span className="ml-auto font-medium text-accent">this email</span>}
-              </div>
-              {t.subject && <div className="mb-1 text-xs font-medium text-muted">{t.subject}</div>}
-              <div className="max-h-72 overflow-y-auto whitespace-pre-wrap text-sm text-fg">{t.body}</div>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 

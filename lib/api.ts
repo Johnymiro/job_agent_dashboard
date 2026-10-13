@@ -83,6 +83,8 @@ export interface Opportunity {
   found_at: string | null;
   application_id: number | null;
   application_status: string | null;
+  /** Jobs: why it likely pays above Portuguese rates ("~$150,000/yr", "Germany"), else null. */
+  high_pay?: string | null;
 }
 
 export interface ContactRow {
@@ -384,7 +386,10 @@ export interface OppQuery {
   source?: string;
   min_score?: number;
   q?: string;
-  sort?: "score" | "recent";
+  /** pay: known salary first, highest first, then score */
+  sort?: "score" | "recent" | "pay";
+  /** only jobs that likely pay above Portuguese rates */
+  high_pay?: boolean;
   limit?: number;
   offset?: number;
 }
