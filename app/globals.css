@@ -68,21 +68,23 @@
   --card-shadow: 0 0 #0000;
 }
 
-/* Dark — mint on instrument black */
+/* Dark — mint on instrument grey. Dark grey, not black, so light text doesn't halo, and tuned
+   by APCA (WCAG 2 overstates dark-mode contrast) on cards: body fg-2 Lc 92 (90+ preferred for
+   reading), muted Lc 75 (body-text floor), subtle Lc 59 (short labels), faint Lc 30 (decoration). */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0a0e0c;
-  --surface: #0e1311;
-  --surface-2: #151c19;
-  --field: #111714;
-  --line: #27312c;
-  --tick: #5d6b64;
+  --bg: #111513;
+  --surface: #161b19;
+  --surface-2: #1d2421;
+  --field: #1a201d;
+  --line: #2c3632;
+  --tick: #687670;
   --grid: rgb(61 220 151 / 0.035);
-  --fg: #edf2ee;
-  --fg-2: #d5ddd8;
-  --muted: #b1bdb6;
-  --subtle: #97a49d;
-  --faint: #5f6c66;
+  --fg: #f1f5f2;
+  --fg-2: #e4eae6;
+  --muted: #c6d0ca;
+  --subtle: #a9b5ae;
+  --faint: #6f7c76;
   --accent: #3ddc97;
   --accent-hover: #6ee7b7;
   --on-accent: #03140c;

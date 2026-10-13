@@ -11,6 +11,7 @@ import type { Block, Lesson, LessonMeta } from "@/lib/learn/types";
 import { load, recordQ, save, shuffle } from "@/lib/prep/engine";
 import type { Question } from "@/lib/prep/types";
 import { Blocks } from "./Blocks";
+import { READING_FONTS, READING_SIZES, ReadingPanel, useReading } from "./reading";
 
 type Near = Pick<LessonMeta, "id" | "n" | "title"> | null;
 export type Learned = Record<string, number>;
@@ -39,6 +40,9 @@ export function LessonView({
     save(slug, "learned", marks);
     setLearned(!learned);
   };
+  const [reading, setReading] = useReading();
+  const [readingOpen, setReadingOpen] = useState(false);
+  const font = READING_FONTS[reading.font];
   const toc = lesson.blocks.filter((b): b is Extract<Block, { t: "h2" }> => b.t === "h2");
   const checks = lesson.checks;
 
@@ -77,10 +81,24 @@ export function LessonView({
             </a>
           </>
         )}
+        <button
+          onClick={() => setReadingOpen(!readingOpen)}
+          aria-expanded={readingOpen}
+          className={`ml-auto inline-flex items-center gap-1.5 border px-2 py-1 transition-colors hover:text-fg ${
+            readingOpen ? "border-accent/50 text-accent" : "border-line"
+          }`}
+        >
+          <span className="font-sans text-[13px] font-semibold leading-none">Aa</span> text
+        </button>
       </div>
+      {readingOpen && <ReadingPanel reading={reading} onChange={setReading} />}
 
-      <div className="grid items-start gap-10 xl:grid-cols-[minmax(0,80ch)_220px]">
-        <div className="min-w-0 max-w-[80ch] xl:max-w-none">
+      {/* the reading column is sized in the chosen font, so lines stay near 68 characters whatever the font and size */}
+      <div
+        className={`grid items-start gap-10 xl:grid-cols-[minmax(0,var(--measure))_220px] ${READING_SIZES[reading.size].cls}`}
+        style={{ fontFamily: font.css, "--measure": `calc(${font.measure} + 4rem)` } as React.CSSProperties}
+      >
+        <div className="min-w-0 max-w-[var(--measure)] xl:max-w-none">
           <Card className="px-5 py-6 sm:px-8 sm:py-8">
             <article>
               <Blocks blocks={lesson.blocks} />

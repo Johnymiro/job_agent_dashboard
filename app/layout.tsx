@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Atkinson_Hyperlegible_Next, IBM_Plex_Mono } from "next/font/google";
+import { Atkinson_Hyperlegible_Next, IBM_Plex_Mono, Literata } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AuthGate } from "@/components/AuthGate";
@@ -7,6 +7,8 @@ import { THEME_SCRIPT } from "@/components/theme";
 
 // built for legibility: I / l / 1 and O / 0 all look different, which helps in code-heavy lessons
 const sans = Atkinson_Hyperlegible_Next({ subsets: ["latin"], display: "swap", variable: "--font-atkinson" });
+// serif option for lessons (components/learn/reading.tsx); only downloaded when someone picks it
+const serif = Literata({ subsets: ["latin"], display: "swap", preload: false, variable: "--font-literata" });
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], display: "swap", variable: "--font-plex-mono" });
 
 export const metadata: Metadata = {
@@ -21,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     // data-theme is set by THEME_SCRIPT before paint, so the server markup differs
-    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
