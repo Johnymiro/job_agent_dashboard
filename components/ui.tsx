@@ -1,5 +1,6 @@
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
+import { BackLink, useSetBackTarget } from "@/components/back";
 import { Icon, type IconName } from "@/components/icons";
 
 export function Card({
@@ -30,6 +31,9 @@ export function PageHeader({
   trail?: { href: string; label: string }[];
   children?: React.ReactNode;
 }) {
+  // nested pages go back to their parent: here on desktop, in the top bar on mobile
+  const back = trail.at(-1);
+  useSetBackTarget(back);
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div className="min-w-0 max-w-3xl">
@@ -45,7 +49,17 @@ export function PageHeader({
           ))}
           <span className="text-accent">{title.toLowerCase()}</span>
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight text-fg">{title}</h1>
+        <div className="flex items-start gap-3">
+          {back && (
+            <BackLink
+              to={back}
+              className="hidden h-9 w-9 shrink-0 items-center justify-center border border-line bg-surface text-subtle transition-colors hover:border-faint hover:text-fg lg:flex"
+            >
+              <Icon name="arrowLeft" className="h-4 w-4" />
+            </BackLink>
+          )}
+          <h1 className="text-3xl font-semibold tracking-tight text-fg">{title}</h1>
+        </div>
         {sub && <p className="mt-1.5 text-sm leading-relaxed text-muted">{sub}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}

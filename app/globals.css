@@ -4,6 +4,8 @@
    (set before first paint by the inline script in app/layout.tsx).
    Use bg-surface / text-fg / border-line … — never raw hex — so both themes work. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/* set on <html> while the mobile top bar is scrolled away (AuthGate) */
+@custom-variant header-hidden (&:where([data-header="hidden"] *));
 
 @theme inline {
   --color-bg: var(--bg);

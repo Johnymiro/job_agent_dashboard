@@ -381,8 +381,8 @@ export function Exam({
 
   return (
     <>
-      {/* proctor strip: flush with the top of the page, under the mobile header */}
-      <div className="sticky top-[57px] z-20 -mx-4 -mt-6 mb-5 border-b border-line bg-bg/90 px-4 py-2.5 backdrop-blur sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-10 lg:-mt-8 lg:px-10">
+      {/* proctor strip: flush with the top of the page, under the mobile header (and up to the top when it hides) */}
+      <div className="sticky top-[57px] z-20 -mx-4 -mt-6 mb-5 border-b border-line bg-bg/90 px-4 py-2.5 backdrop-blur transition-[top] duration-200 motion-reduce:transition-none header-hidden:top-0 sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-10 lg:-mt-8 lg:px-10">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <button
             onClick={onLeave}
