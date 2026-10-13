@@ -42,7 +42,7 @@ export function Results({
               "close",
               `Below the ${test.target}% target. Go through the misses below, drill the weakest section, then retake.`,
             ] as const)
-          : (["bad", "needs work", `Well below the ${test.target}% target. Drill one section at a time before the next mock.`] as const);
+          : (["bad", "needs work", `Well below the ${test.target}% target. Drill one section at a time, then try again.`] as const);
 
   const order = [...test.sections.map((x) => x.id), "code"].filter((k) => r.by[k]);
   const weakest = order
@@ -70,13 +70,13 @@ export function Results({
   )
     .filter(([k]) => k === "all" || counts[k])
     .map(([value, label]) => ({ value, label, count: counts[value] }));
-  const again: Mode = r.mode === "sprint" ? "sprint" : "mock";
+  const again = r.mode === "sprint" || r.mode === "review" ? r.mode : "mock";
 
   return (
     <div className="space-y-5">
       <PageHeader
         title={test.company}
-        parent={{ href: "/prep", label: "test prep" }}
+        trail={[{ href: "/prep", label: "test prep" }]}
         sub={
           <>
             {r.title} · results{r.reason === "time" && <span className="text-warn"> · time ran out</span>}
@@ -117,7 +117,7 @@ export function Results({
               </Button>
             )}
             {weakest && r.mode !== "drill" && <Button onClick={() => onDrill(weakest.k)}>Drill {bank.S[weakest.k].name}</Button>}
-            {test[again] && <Button onClick={() => onNew(again)}>New {again === "sprint" ? "sprint" : "mock exam"}</Button>}
+            {test[again] && <Button onClick={() => onNew(again)}>New {again === "mock" ? "mock exam" : again}</Button>}
             <Button variant="subtle" onClick={onHome}>
               Back to {test.company}
             </Button>
@@ -192,7 +192,7 @@ function ReviewItem({ bank, sess, i }: { bank: Bank; sess: Session; i: number })
         </div>
         <Paras text={q.q} className="max-w-[70ch] text-[15.5px] leading-relaxed text-fg" />
         {q.code && <CodeBlock src={q.code.src} lang={q.code.lang} />}
-        <Options bank={bank} s={sess} i={i} interactive={false} compact />
+        <Options q={q} order={it.order} sel={sess.ans[i] || []} show compact />
         <p className="mt-3 max-w-[78ch] text-sm leading-relaxed text-fg-2">
           <b className="font-semibold text-fg">Why: </b>
           <Inline text={q.exp} />

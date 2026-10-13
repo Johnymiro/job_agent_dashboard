@@ -30,8 +30,10 @@ add the dashboard origin to the API's `CORS_ORIGINS`.
 | `/searches` | What discovery runs (Google Jobs/Maps/search via SerpAPI + free boards, HN, RSS, ATS boards) |
 | `/runs` | Trigger the full pipeline or one step; live per-step stats |
 | `/settings` | Daily cap & warm-up, thresholds, pipeline time, profile + CV upload, mail test, do-not-contact list |
-| `/prep` | Technical-test prep packs, with progress per test |
+| `/prep` | Technical-test prep packs and subjects to learn, with progress per test and subject |
 | `/prep/<slug>` | One test's simulator: timed mock exam, sprint, topic drills, coding lab (Python on Brython, JS in a worker, real tests), results with explanations. Progress is kept in this browser (`localStorage`, keys `prep.<slug>.*`) |
+| `/prep/learn/<subject>` | A subject (Python, React & TypeScript): lessons with progress, and a quick review of their checks (missed first) on the same simulator |
+| `/prep/learn/<subject>/<lesson>` | One lesson: explanations, examples, callouts, quick checks with instant feedback, "mark as learned", prev / next |
 
 ## Adding a test prep
 
@@ -39,3 +41,32 @@ add the dashboard origin to the API's `CORS_ORIGINS`.
 2. Add it to `PREP_TESTS` in `lib/prep/index.ts`.
 
 That's it: `/prep` lists it and `/prep/<slug>` is generated at build time. Python test `expected` values are Python literals as strings (`"[1, 2]"`); JS ones are plain JSON values.
+
+## Adding lessons or a subject
+
+Lessons are Markdown files in `content/learn/<subject>/`, named `NN-lesson-id.md` (the number sets the order, the rest is the URL). `level` is `core`, `intermediate` or `advanced`. They're read at build time, so a new file only needs a rebuild (or a refresh in dev). A malformed quick check fails the build with the file name.
+
+```md
+---
+title: Closures and decorators
+summary: One line for the lesson list.
+level: core
+---
+
+Intro paragraph. Inline `code`, **bold**, [links](https://docs.python.org).
+
+## A section          (h2s build the "On this page" list)
+
+> **Tip:** / **Pitfall:** / **In the test:** callouts (a plain > quote is a note)
+
+## Quick check
+
+**Q:** Question stem
+
+- [ ] wrong option
+- [x] right option    (several [x] = select all that apply)
+
+> One-paragraph explanation.
+```
+
+Code fences (` ```python `, ` ```jsx ` …), lists and `| tables |` work as usual. To add a subject, add it to `SUBJECTS` in `lib/learn/subjects.ts` and create its folder.

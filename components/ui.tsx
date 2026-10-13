@@ -21,13 +21,13 @@ export function Card({
 export function PageHeader({
   title,
   sub,
-  parent,
+  trail = [],
   children,
 }: {
   title: string;
   sub?: React.ReactNode;
-  /** extra breadcrumb segment before the title, e.g. test prep / bnp paribas */
-  parent?: { href: string; label: string };
+  /** breadcrumb links between "agent" and the title, e.g. test prep / python / … */
+  trail?: { href: string; label: string }[];
   children?: React.ReactNode;
 }) {
   return (
@@ -35,14 +35,14 @@ export function PageHeader({
       <div className="min-w-0 max-w-3xl">
         <div className="mb-1.5 font-mono text-xs text-subtle">
           jackmiro.pt <span className="text-faint">/</span> agent <span className="text-faint">/</span>{" "}
-          {parent && (
-            <>
-              <Link href={parent.href} className="hover:text-fg hover:underline">
-                {parent.label}
+          {trail.map((t) => (
+            <React.Fragment key={t.href}>
+              <Link href={t.href} className="hover:text-fg hover:underline">
+                {t.label}
               </Link>{" "}
               <span className="text-faint">/</span>{" "}
-            </>
-          )}
+            </React.Fragment>
+          ))}
           <span className="text-accent">{title.toLowerCase()}</span>
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-fg">{title}</h1>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Empty, buttonClass } from "@/components/ui";
 import { getPrepTest } from "@/lib/prep";
 import {
@@ -29,7 +29,7 @@ import {
 import { runTask } from "@/lib/prep/runners";
 import { Dialog, type DialogSpec } from "./Dialog";
 import { Exam } from "./Exam";
-import { PrepHome } from "./PrepHome";
+import { type HomeProps, PrepHome } from "./PrepHome";
 import { Results } from "./Results";
 
 /** /prep/<slug>: looks the test up, then runs the simulator for it. */
@@ -51,7 +51,14 @@ export function PrepTestPage({ slug }: { slug: string }) {
 
 type View = "home" | "exam" | "results";
 
-function Simulator({ bank }: { bank: Bank }) {
+/** Start page → session → results for one bank. `renderHome` swaps the start page (subjects show lessons there). */
+export function Simulator({
+  bank,
+  renderHome = (p) => <PrepHome {...p} />,
+}: {
+  bank: Bank;
+  renderHome?: (p: HomeProps) => React.ReactNode;
+}) {
   const slug = bank.test.slug;
   const [view, setView] = useState<View>("home");
   const [s, setS] = useState<Session | null>(null);
@@ -168,39 +175,38 @@ function Simulator({ bank }: { bank: Bank }) {
   return (
     <>
       {view === "home" && (
-        <PrepHome
-          key={rev}
-          bank={bank}
-          onStart={start}
-          onResume={resume}
-          onDiscard={() =>
-            setDialog({
-              title: "Discard the unfinished session?",
-              body: "Its answers won't be scored or saved.",
-              cancelLabel: "Keep it",
-              confirm: {
-                label: "Discard",
-                onConfirm: () => {
-                  drop(slug, "session");
-                  refresh();
+        <Fragment key={rev}>
+          {renderHome({
+            bank,
+            onStart: start,
+            onResume: resume,
+            onDiscard: () =>
+              setDialog({
+                title: "Discard the unfinished session?",
+                body: "Its answers won't be scored or saved.",
+                cancelLabel: "Keep it",
+                confirm: {
+                  label: "Discard",
+                  onConfirm: () => {
+                    drop(slug, "session");
+                    refresh();
+                  },
                 },
-              },
-            })
-          }
-          onClearHistory={() =>
-            setDialog({
-              title: "Clear your history?",
-              body: "This removes past scores, best coding runs, and the per-question record used to put unseen and missed questions first.",
-              confirm: {
-                label: "Clear",
-                onConfirm: () => {
-                  clearProgress(slug);
-                  refresh();
+              }),
+            onClearHistory: () =>
+              setDialog({
+                title: "Clear your history?",
+                body: `This removes past scores${bank.test.tasks.length ? ", best coding runs," : ""} and the per-question record used to put unseen and missed questions first.`,
+                confirm: {
+                  label: "Clear",
+                  onConfirm: () => {
+                    clearProgress(slug);
+                    refresh();
+                  },
                 },
-              },
-            })
-          }
-        />
+              }),
+          })}
+        </Fragment>
       )}
 
       {view === "exam" && s && (

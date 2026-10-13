@@ -3,7 +3,7 @@
 import type { RunResult } from "./runners";
 import type { CodingTask, PrepSection, PrepTest, Question } from "./types";
 
-export type Mode = "mock" | "sprint" | "drill" | "lab";
+export type Mode = "mock" | "sprint" | "drill" | "lab" | "review";
 
 export type Item = { k: "q"; id: string; order: number[] } | { k: "t"; id: string };
 
@@ -88,7 +88,8 @@ export function bankFor(test: PrepTest): Bank {
 }
 
 // ---- storage (this browser only) ---------------------------------------------
-type StoreName = "session" | "history" | "qstats" | "taskbest";
+/** learned: lesson id → when it was marked learned (subjects only) */
+type StoreName = "session" | "history" | "qstats" | "taskbest" | "learned";
 const key = (slug: string, name: StoreName) => `prep.${slug}.${name}.v1`;
 
 export function load<T>(slug: string, name: StoreName, fallback: T): T {
@@ -195,6 +196,7 @@ function buildItems(test: PrepTest, mode: Mode, section?: string): Item[] {
     }
     return shuffle(picked).map(qItem);
   }
+  if (mode === "review" && test.review) return shuffle(prioritized(test.slug, test.questions).slice(0, test.review.count)).map(qItem);
   if (mode === "drill" && section) return shuffle(inSection(test, section)).map(qItem);
   return test.tasks.map(tItem);
 }
@@ -213,9 +215,11 @@ export function newSession(
       ? "Drill · " + bank.S[opt.section!].name
       : mode === "sprint"
         ? `Sprint · ${items.length} questions`
-        : mode === "mock"
-          ? "Full mock exam"
-          : "Coding lab");
+        : mode === "review"
+          ? `Review · ${items.length} questions`
+          : mode === "mock"
+            ? "Full mock exam"
+            : "Coding lab");
   const code: Record<number, string> = {};
   items.forEach((it, i) => {
     if (it.k === "t") code[i] = bank.T[it.id].starter;
@@ -240,8 +244,8 @@ export function newSession(
 }
 
 // ---- grading ------------------------------------------------------------------
-/** Drills and the coding lab show answers as you go; mock and sprint wait for submit. */
-export const feedbackMode = (s: Session) => s.mode === "drill" || s.mode === "lab";
+/** Drills, reviews and the coding lab show answers as you go; mock and sprint wait for submit. */
+export const feedbackMode = (s: Session) => s.mode === "drill" || s.mode === "lab" || s.mode === "review";
 
 export const codeTouched = (bank: Bank, s: Session, i: number) => (s.code[i] || "").trim() !== bank.T[s.items[i].id].starter.trim();
 

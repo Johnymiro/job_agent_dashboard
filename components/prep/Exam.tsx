@@ -17,7 +17,7 @@ import {
 import { loadPython, pythonReady, runTask } from "@/lib/prep/runners";
 import type { TaskLang } from "@/lib/prep/types";
 import type { DialogSpec } from "./Dialog";
-import { CodeBlock, ErrorBox, LETTERS, LangChip, LogBox, Options, Paras, Reveal, TestList, Inline, mmss, pad } from "./parts";
+import { CodeBlock, ErrorBox, LETTERS, LangChip, LogBox, Options, Paras, Reveal, TestList, Verdict, mmss, pad } from "./parts";
 
 const XL = "(min-width: 80rem)";
 
@@ -216,7 +216,7 @@ export function Exam({
   if (s.ends) {
     const left = s.ends - now;
     gauge = { label: "time left", value: mmss(left), low: left <= 5 * 60_000 };
-  } else if (s.mode === "drill") {
+  } else if (s.mode === "drill" || s.mode === "review") {
     const checked = s.items.map((_, i) => i).filter((i) => s.checked[i]);
     gauge = { label: "correct", value: `${checked.filter((i) => grade(bank, s, i).correct).length}/${checked.length}` };
   } else {
@@ -278,17 +278,8 @@ export function Exam({
         <Paras text={q.q} className="mt-5 max-w-[70ch] text-[17px] leading-relaxed text-fg" />
         {q.code && <CodeBlock src={q.code.src} lang={q.code.lang} />}
         {q.type === "multi" && <p className="mt-3 text-xs font-medium text-subtle">Select all that apply. Scored all-or-nothing.</p>}
-        <Options bank={bank} s={s} i={cur} interactive onChoose={choose} />
-        {shown && (
-          <div role="status" className={`mt-5 max-w-[78ch] border bg-surface-2/40 px-4 py-3.5 ${ok ? "border-good/50" : "border-bad/50"}`}>
-            <div className={`font-mono text-[11px] uppercase tracking-[0.14em] ${ok ? "text-good" : "text-bad"}`}>
-              {ok ? "Correct" : "Not quite"}
-            </div>
-            <p className="mt-1.5 text-[15px] leading-relaxed text-fg-2">
-              <Inline text={q.exp} />
-            </p>
-          </div>
-        )}
+        <Options q={q} order={it.order} sel={s.ans[cur] || []} show={shown} onChoose={choose} />
+        {shown && <Verdict ok={ok} exp={q.exp} />}
         {nav()}
       </>
     );

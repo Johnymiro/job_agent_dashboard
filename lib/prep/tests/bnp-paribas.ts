@@ -228,7 +228,7 @@ print(route({"type": "tool_call", "name": "search", "args": {}}))` },
   /* ───────────── REACT & TYPESCRIPT ───────────── */
   { id: "fe-01", s: "react", type: "single",
     q: "The button shows 0. After one click, what does it show?",
-    code: { lang: "js", src: `function Counter() {
+    code: { lang: "jsx", src: `function Counter() {
   const [count, setCount] = useState(0);
   function handleClick() {
     setCount(count + 1);
@@ -243,7 +243,7 @@ print(route({"type": "tool_call", "name": "search", "args": {}}))` },
 
   { id: "fe-02", s: "react", type: "single",
     q: "What does the user see after 5 seconds?",
-    code: { lang: "js", src: `function Clock() {
+    code: { lang: "jsx", src: `function Clock() {
   const [seconds, setSeconds] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setSeconds(seconds + 1), 1000);
@@ -274,7 +274,7 @@ print(route({"type": "tool_call", "name": "search", "args": {}}))` },
 
   { id: "fe-05", s: "react", type: "single",
     q: "Selecting one row re-renders every `Row`. Why?",
-    code: { lang: "js", src: `const Row = React.memo(function Row({ trade, onSelect }) {
+    code: { lang: "jsx", src: `const Row = React.memo(function Row({ trade, onSelect }) {
   /* ... */
 });
 
@@ -409,7 +409,7 @@ console.log("D");` },
 
   { id: "fe-16", s: "react", type: "single",
     q: "Every consumer of `AuthContext` re-renders whenever `AuthProvider` re-renders, even when `user` hasn't changed. Why?",
-    code: { lang: "js", src: `function AuthProvider({ children }) {
+    code: { lang: "jsx", src: `function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   return (
     <AuthContext.Provider value={{ user, setUser }}>

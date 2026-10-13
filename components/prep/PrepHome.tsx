@@ -5,6 +5,7 @@ import {
   type Bank,
   type Mode,
   type QStats,
+  type Session,
   type Summary,
   type TaskBest,
   isAnswered,
@@ -33,20 +34,17 @@ function Kbd({ children }: { children: React.ReactNode }) {
   return <kbd className="border border-b-2 border-line bg-surface px-1 font-mono text-[10.5px] text-muted">{children}</kbd>;
 }
 
-/** The test's start page. Reads progress from this browser's storage on every render. */
-export function PrepHome({
-  bank,
-  onStart,
-  onResume,
-  onDiscard,
-  onClearHistory,
-}: {
+/** What the simulator hands its start page (tests use PrepHome; subjects have their own). */
+export interface HomeProps {
   bank: Bank;
   onStart: (mode: Mode, opt?: { section?: string; start?: number }) => void;
   onResume: () => void;
   onDiscard: () => void;
   onClearHistory: () => void;
-}) {
+}
+
+/** The test's start page. Reads progress from this browser's storage on every render. */
+export function PrepHome({ bank, onStart, onResume, onDiscard, onClearHistory }: HomeProps) {
   const { test } = bank;
   const hist = load<Summary[]>(test.slug, "history", []);
   const st = load<QStats>(test.slug, "qstats", {});
@@ -63,33 +61,11 @@ export function PrepHome({
     .join(" and ");
   const plural = Object.values(perLang).some((c) => c > 1);
 
-  let resume: React.ReactNode = null;
-  if (pend) {
-    const answered = pend.items.filter((_, i) => isAnswered(bank, pend, i)).length;
-    const expired = !!pend.ends && pend.ends <= Date.now();
-    resume = (
-      <Notice tone="info" icon="clock">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="min-w-[16rem] flex-1">
-            <b className="font-medium text-fg">Unfinished: {pend.title}</b> · {answered} of {pend.items.length} answered.
-            {pend.ends ? (expired ? " The clock ran out while you were away." : ` ${mmss(pend.ends - Date.now())} left on the clock.`) : ""}
-          </span>
-          <Button size="sm" variant="primary" onClick={onResume}>
-            {expired ? "Submit and see results" : "Resume"}
-          </Button>
-          <Button size="sm" variant="subtle" onClick={onDiscard}>
-            Discard
-          </Button>
-        </div>
-      </Notice>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
         title={test.company}
-        parent={{ href: "/prep", label: "test prep" }}
+        trail={[{ href: "/prep", label: "test prep" }]}
         sub={
           <>
             <span className="font-medium text-fg">{test.title}.</span> {test.summary}
@@ -107,7 +83,7 @@ export function PrepHome({
         )}
       </div>
 
-      {resume}
+      {pend && <ResumeNotice bank={bank} pend={pend} onResume={onResume} onDiscard={onDiscard} />}
 
       {(mock || test.sprint) && (
         <div>
@@ -255,43 +231,7 @@ export function PrepHome({
         >
           Your attempts
         </PanelTitle>
-        <Card>
-          {hist.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-subtle">No attempts yet. Scores are kept in this browser only.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] text-sm">
-                <thead>
-                  <tr className="border-b border-line text-left font-mono text-[11px] uppercase tracking-[0.12em] text-subtle">
-                    <th className="px-4 py-2.5 font-normal">When</th>
-                    <th className="px-4 py-2.5 font-normal">Session</th>
-                    <th className="px-4 py-2.5 font-normal">Score</th>
-                    <th className="px-4 py-2.5 font-normal">Correct</th>
-                    <th className="px-4 py-2.5 font-normal">Time</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {hist.slice(0, 12).map((h) => {
-                    const tone = levelTone(h.pct, test.target);
-                    return (
-                      <tr key={h.at}>
-                        <td className="whitespace-nowrap px-4 py-2.5 text-muted">
-                          {new Date(h.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                        </td>
-                        <td className="px-4 py-2.5 text-fg">{h.title}</td>
-                        <td className={`px-4 py-2.5 font-mono font-medium tabular-nums ${tone ? TEXT[tone] : ""}`}>{h.pct}%</td>
-                        <td className="px-4 py-2.5 font-mono tabular-nums text-muted">
-                          {h.correct}/{h.n}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-2.5 text-muted">{dur(h.secs)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+        <AttemptsTable hist={hist} target={test.target} />
       </div>
 
       <footer className="flex flex-wrap justify-between gap-x-6 gap-y-2 border-t border-line pt-4 text-xs text-subtle">
@@ -315,5 +255,80 @@ export function PrepHome({
         </p>
       </footer>
     </div>
+  );
+}
+
+/** "Unfinished: …" banner with Resume / Discard. */
+export function ResumeNotice({
+  bank,
+  pend,
+  onResume,
+  onDiscard,
+}: {
+  bank: Bank;
+  pend: Session;
+  onResume: () => void;
+  onDiscard: () => void;
+}) {
+  const answered = pend.items.filter((_, i) => isAnswered(bank, pend, i)).length;
+  const expired = !!pend.ends && pend.ends <= Date.now();
+  return (
+    <Notice tone="info" icon="clock">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span className="min-w-[16rem] flex-1">
+          <b className="font-medium text-fg">Unfinished: {pend.title}</b> · {answered} of {pend.items.length} answered.
+          {pend.ends ? (expired ? " The clock ran out while you were away." : ` ${mmss(pend.ends - Date.now())} left on the clock.`) : ""}
+        </span>
+        <Button size="sm" variant="primary" onClick={onResume}>
+          {expired ? "Submit and see results" : "Resume"}
+        </Button>
+        <Button size="sm" variant="subtle" onClick={onDiscard}>
+          Discard
+        </Button>
+      </div>
+    </Notice>
+  );
+}
+
+/** Past sessions, newest first (12 shown). */
+export function AttemptsTable({ hist, target }: { hist: Summary[]; target: number }) {
+  return (
+    <Card>
+      {hist.length === 0 ? (
+        <p className="px-5 py-6 text-sm text-subtle">No attempts yet. Scores are kept in this browser only.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] text-sm">
+            <thead>
+              <tr className="border-b border-line text-left font-mono text-[11px] uppercase tracking-[0.12em] text-subtle">
+                <th className="px-4 py-2.5 font-normal">When</th>
+                <th className="px-4 py-2.5 font-normal">Session</th>
+                <th className="px-4 py-2.5 font-normal">Score</th>
+                <th className="px-4 py-2.5 font-normal">Correct</th>
+                <th className="px-4 py-2.5 font-normal">Time</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {hist.slice(0, 12).map((h) => {
+                const tone = levelTone(h.pct, target);
+                return (
+                  <tr key={h.at}>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-muted">
+                      {new Date(h.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                    <td className="px-4 py-2.5 text-fg">{h.title}</td>
+                    <td className={`px-4 py-2.5 font-mono font-medium tabular-nums ${tone ? TEXT[tone] : ""}`}>{h.pct}%</td>
+                    <td className="px-4 py-2.5 font-mono tabular-nums text-muted">
+                      {h.correct}/{h.n}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-muted">{dur(h.secs)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }

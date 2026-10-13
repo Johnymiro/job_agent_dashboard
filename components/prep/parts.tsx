@@ -1,7 +1,6 @@
 import React from "react";
-import type { Bank, Session } from "@/lib/prep/engine";
 import type { TestResult } from "@/lib/prep/runners";
-import type { SnippetLang } from "@/lib/prep/types";
+import type { Question } from "@/lib/prep/types";
 
 export const LETTERS = "ABCDEFGH";
 export const pad = (n: number) => String(n).padStart(2, "0");
@@ -21,14 +20,26 @@ export const levelTone = (pct: number | null, target: number) => (pct == null ? 
 export const FILL = { good: "bg-good", warn: "bg-warn", bad: "bg-bad" } as const;
 export const TEXT = { good: "text-good", warn: "text-warn", bad: "text-bad" } as const;
 
-// ---- inline text: `code`, **bold**, blank-line paragraphs ------------------------
+// ---- inline text: `code`, **bold**, [links](https://…), blank-line paragraphs ----------
+const LINK = /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/;
+
 export function Inline({ text }: { text: string }) {
   return (
     <>
-      {/* odd indexes are the captured `code` / **bold** tokens */}
-      {text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).map((part, i) =>
+      {/* odd indexes are the captured `code` / **bold** / [link](url) tokens */}
+      {text.split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g).map((part, i) =>
         i % 2 === 0 ? (
           part
+        ) : part.startsWith("[") ? (
+          <a
+            key={i}
+            href={part.match(LINK)![2]}
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent underline-offset-2 hover:underline"
+          >
+            {part.match(LINK)![1]}
+          </a>
         ) : part.startsWith("`") ? (
           <code
             key={i}
@@ -84,8 +95,11 @@ const RX = {
   sql: /(--[^\n]*)|('(?:''|[^'])*')|(\b\d+(?:\.\d+)?\b)|([A-Za-z_]\w*)/g,
 };
 
-function highlight(src: string, lang: SnippetLang) {
-  const key = lang === "ts" ? "js" : lang;
+const GRAMMAR: Record<string, keyof typeof RX> = { python: "python", py: "python", js: "js", jsx: "js", ts: "js", tsx: "js", sql: "sql" };
+
+function highlight(src: string, lang: string) {
+  const key = GRAMMAR[lang];
+  if (!key) return [src]; // bash, text, json…: plain
   const re = new RegExp(RX[key].source, "g");
   const kw = KW[key];
   const out: React.ReactNode[] = [];
@@ -132,10 +146,10 @@ function highlight(src: string, lang: SnippetLang) {
 }
 
 /** Highlighted code; `flush` drops the outer border (inside <details>). */
-export function CodeBlock({ src, lang, flush = false }: { src: string; lang: SnippetLang; flush?: boolean }) {
+export function CodeBlock({ src, lang, flush = false }: { src: string; lang: string; flush?: boolean }) {
   return (
     <div className={`relative ${flush ? "" : "mt-4"}`}>
-      <span className="pointer-events-none absolute right-3 top-2 font-mono text-[10.5px] text-subtle">{lang === "js" ? "jsx" : lang}</span>
+      <span className="pointer-events-none absolute right-3 top-2 font-mono text-[10.5px] text-subtle">{lang}</span>
       <pre
         className={`overflow-x-auto bg-surface-2/60 px-4 py-3.5 font-mono text-[13px] leading-[1.6] text-fg [tab-size:4] ${
           flush ? "border-t border-line" : "border border-line"
@@ -157,35 +171,31 @@ export function Reveal({ label, children }: { label: string; children: React.Rea
 }
 
 // ---- answer options ------------------------------------------------------------------
-/** Bubble + text per option. Interactive until checked; read-only in review. */
+/** Bubble + text per option, in `order` (shuffled indexes into q.opts).
+ *  Clickable until `show`, which marks the right and wrong answers. */
 export function Options({
-  bank,
-  s,
-  i,
-  interactive,
+  q,
+  order,
+  sel,
+  show,
   onChoose,
   compact = false,
 }: {
-  bank: Bank;
-  s: Session;
-  i: number;
-  interactive: boolean;
+  q: Question;
+  order: number[];
+  sel: number[];
+  show: boolean;
   onChoose?: (oi: number) => void;
   compact?: boolean;
 }) {
-  const it = s.items[i];
-  if (it.k !== "q") return null;
-  const q = bank.Q[it.id];
-  const sel = s.ans[i] || [];
   const multi = q.type === "multi";
-  const show = !interactive || !!s.checked[i];
   return (
     <div
       className={`flex max-w-[78ch] flex-col gap-2 ${compact ? "mt-3" : "mt-6"}`}
       role={multi ? "group" : "radiogroup"}
       aria-label="Answer options"
     >
-      {it.order.map((oi, pos) => {
+      {order.map((oi, pos) => {
         const on = sel.includes(oi);
         const right = show && q.a.includes(oi);
         const wrong = show && on && !right;
@@ -237,6 +247,20 @@ export function Options({
     </div>
   );
 }
+
+/** Right / wrong banner with the explanation, after a question is checked. */
+export function Verdict({ ok, exp }: { ok: boolean; exp: string }) {
+  return (
+    <div role="status" className={`mt-5 max-w-[78ch] border bg-surface-2/40 px-4 py-3.5 ${ok ? "border-good/50" : "border-bad/50"}`}>
+      <div className={`font-mono text-[11px] uppercase tracking-[0.14em] ${ok ? "text-good" : "text-bad"}`}>
+        {ok ? "Correct" : "Not quite"}
+      </div>
+      <Paras text={exp} className="mt-1.5 text-[15px] leading-relaxed text-fg-2" />
+    </div>
+  );
+}
+
+export const isCorrect = (q: Question, sel: number[]) => sel.length === q.a.length && q.a.every((x) => sel.includes(x));
 
 // ---- coding test results ----------------------------------------------------------------
 const showVal = (v: string | undefined) => (v == null ? "" : v.replace(/"__undefined__"/g, "undefined"));

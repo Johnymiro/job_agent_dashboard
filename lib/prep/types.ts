@@ -2,7 +2,7 @@
  *  under lib/prep/tests/ and listing it in lib/prep/index.ts — the simulator
  *  (mock exam, sprint, drills, coding lab, history) works off this data alone. */
 
-export type SnippetLang = "python" | "js" | "ts" | "sql";
+export type SnippetLang = "python" | "js" | "jsx" | "ts" | "tsx" | "sql";
 export type TaskLang = "python" | "js";
 
 export interface PrepSection {
@@ -67,6 +67,8 @@ export interface PrepTest {
   mock?: { minutes: number; perSection: number; tasks: TaskLang[] };
   /** short timed mixed round, no coding */
   sprint?: { minutes: number; count: number };
+  /** untimed mixed round with answers after each question, missed ones first */
+  review?: { count: number };
   sections: PrepSection[];
   questions: Question[];
   tasks: CodingTask[];
