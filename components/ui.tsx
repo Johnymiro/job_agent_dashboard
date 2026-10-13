@@ -1,3 +1,4 @@
+import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/icons";
 
@@ -20,10 +21,13 @@ export function Card({
 export function PageHeader({
   title,
   sub,
+  parent,
   children,
 }: {
   title: string;
   sub?: React.ReactNode;
+  /** extra breadcrumb segment before the title, e.g. test prep / bnp paribas */
+  parent?: { href: string; label: string };
   children?: React.ReactNode;
 }) {
   return (
@@ -31,6 +35,14 @@ export function PageHeader({
       <div className="min-w-0 max-w-3xl">
         <div className="mb-1.5 font-mono text-xs text-subtle">
           jackmiro.pt <span className="text-faint">/</span> agent <span className="text-faint">/</span>{" "}
+          {parent && (
+            <>
+              <Link href={parent.href} className="hover:text-fg hover:underline">
+                {parent.label}
+              </Link>{" "}
+              <span className="text-faint">/</span>{" "}
+            </>
+          )}
           <span className="text-accent">{title.toLowerCase()}</span>
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-fg">{title}</h1>
@@ -160,6 +172,15 @@ const TONE = {
   orchid: "bg-orchid/10 text-orchid border-orchid/30",
 };
 type Tone = keyof typeof TONE;
+
+/** Small tinted label in one of the shared tones. */
+export function Pill({ tone = "neutral", children }: { tone?: Tone; children: React.ReactNode }) {
+  return (
+    <span className={`inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-px font-mono text-[11px] ${TONE[tone]}`}>
+      {children}
+    </span>
+  );
+}
 
 const STATUS_TONE: Record<string, Tone> = {
   // opportunities

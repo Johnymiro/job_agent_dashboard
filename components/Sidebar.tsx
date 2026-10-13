@@ -20,6 +20,7 @@ const NAV: { title: string; items: NavItem[] }[] = [
       { href: "/jobs", label: "Jobs", icon: "briefcase", count: "apply" },
       { href: "/leads", label: "Leads & Projects", icon: "target" },
       { href: "/portfolio", label: "Portfolio visitors", icon: "globe" },
+      { href: "/prep", label: "Test prep", icon: "graduation" },
     ],
   },
   {

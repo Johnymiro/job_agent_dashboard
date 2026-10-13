@@ -30,3 +30,12 @@ add the dashboard origin to the API's `CORS_ORIGINS`.
 | `/searches` | What discovery runs (Google Jobs/Maps/search via SerpAPI + free boards, HN, RSS, ATS boards) |
 | `/runs` | Trigger the full pipeline or one step; live per-step stats |
 | `/settings` | Daily cap & warm-up, thresholds, pipeline time, profile + CV upload, mail test, do-not-contact list |
+| `/prep` | Technical-test prep packs, with progress per test |
+| `/prep/<slug>` | One test's simulator: timed mock exam, sprint, topic drills, coding lab (Python on Brython, JS in a worker, real tests), results with explanations. Progress is kept in this browser (`localStorage`, keys `prep.<slug>.*`) |
+
+## Adding a test prep
+
+1. Write `lib/prep/tests/<slug>.ts` exporting a `PrepTest` (shape and comments in `lib/prep/types.ts`; `bnp-paribas.ts` is a full example): sections, multiple-choice questions (`a` = indexes of the right options), coding tasks with tests, and the mock/sprint settings. Leave out `mock`, `sprint` or `tasks` if the test doesn't need them.
+2. Add it to `PREP_TESTS` in `lib/prep/index.ts`.
+
+That's it: `/prep` lists it and `/prep/<slug>` is generated at build time. Python test `expected` values are Python literals as strings (`"[1, 2]"`); JS ones are plain JSON values.
