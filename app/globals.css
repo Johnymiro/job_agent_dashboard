@@ -30,7 +30,7 @@
   --color-iris: var(--iris);
   --color-orchid: var(--orchid);
   --shadow-card: var(--card-shadow);
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-atkinson), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
   /* Instrument-panel look: near-square corners everywhere (pills stay rounded-full). */
   --radius-sm: 2px;
@@ -75,14 +75,14 @@
   --surface: #0e1311;
   --surface-2: #151c19;
   --field: #111714;
-  --line: #222b27;
+  --line: #27312c;
   --tick: #5d6b64;
   --grid: rgb(61 220 151 / 0.035);
-  --fg: #e8eee9;
-  --fg-2: #c6d0ca;
-  --muted: #9eaba4;
-  --subtle: #7f8d86;
-  --faint: #4f5c56;
+  --fg: #edf2ee;
+  --fg-2: #d5ddd8;
+  --muted: #b1bdb6;
+  --subtle: #97a49d;
+  --faint: #5f6c66;
   --accent: #3ddc97;
   --accent-hover: #6ee7b7;
   --on-accent: #03140c;
