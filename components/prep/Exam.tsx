@@ -1,21 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/icons";
 import { Button, Card, Label, Pill } from "@/components/ui";
 import {
   type Bank,
+  type Integrity,
   type Session,
   type StoredRun,
   codeTouched,
   feedbackMode,
   grade,
+  hiddenTest,
   isAnswered,
   recordQ,
   recordTask,
+  taskPointsFor,
 } from "@/lib/prep/engine";
-import { loadPython, pythonReady, runTask } from "@/lib/prep/runners";
-import type { TaskLang } from "@/lib/prep/types";
+import { loadPython, loadReact, previewReact, pythonReady, reactReady, runTask } from "@/lib/prep/runners";
+import type { CodingTask, TaskLang } from "@/lib/prep/types";
 import type { DialogSpec } from "./Dialog";
 import { CodeBlock, ErrorBox, LETTERS, LangChip, LogBox, Options, Paras, Reveal, TestList, Verdict, mmss, pad } from "./parts";
 
@@ -70,7 +73,35 @@ export function Exam({
   const [running, setRunning] = useState<number | false>(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // bumped after each run so the React preview re-renders the code that was run
+  const [previewRev, setPreviewRev] = useState(0);
+  const [pasteWarn, setPasteWarn] = useState<number | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
+  const cb = s.mode === "coderbyte";
+
+  const bumpIntegrity = useCallback(
+    (fn: (x: Integrity) => Partial<Integrity>) =>
+      update((x) => (x.integrity && !x.done ? { ...x, integrity: { ...x.integrity, ...fn(x.integrity) } } : x)),
+    [update],
+  );
+
+  // Coderbyte flags leaving the editor tab: count each time the page is hidden, and for how long
+  useEffect(() => {
+    if (!cb) return;
+    let awayAt = 0;
+    const onVis = () => {
+      if (document.hidden) {
+        awayAt = Date.now();
+        bumpIntegrity((x) => ({ leaves: x.leaves + 1 }));
+      } else if (awayAt) {
+        const ms = Date.now() - awayAt;
+        awayAt = 0;
+        bumpIntegrity((x) => ({ awayMs: x.awayMs + ms }));
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [cb, bumpIntegrity]);
 
   // exam clock; time running out submits
   useEffect(() => {
@@ -82,10 +113,11 @@ export function Exam({
     if (s.ends && now >= s.ends) onFinish("time");
   }, [now, s.ends, onFinish]);
 
-  // warm up the Python runtime while the task is being read
+  // warm up the Python / React runtime while the task is being read
   useEffect(() => {
-    if (it.k !== "t" || bank.T[it.id].lang !== "python") return;
-    const t = setTimeout(() => loadPython().catch(() => {}), 600);
+    if (it.k !== "t" || bank.T[it.id].lang === "js") return;
+    const lang = bank.T[it.id].lang;
+    const t = setTimeout(() => (lang === "python" ? loadPython() : loadReact()).catch(() => {}), 600);
     return () => clearTimeout(t);
   }, [it, bank]);
 
@@ -134,6 +166,13 @@ export function Exam({
     if (run.tests.length) recordTask(slug, t.id, run.tests.filter((x) => x.passed).length, run.tests.length);
     update((x) => (x.started === s.started ? { ...x, runs: { ...x.runs, [i]: run } } : x));
     setRunning(false);
+    if (t.lang === "react") setPreviewRev((n) => n + 1);
+  };
+
+  const onPaste = (outside: boolean) => {
+    if (!outside) return;
+    if (cb) bumpIntegrity((x) => ({ pastes: x.pastes + 1 }));
+    setPasteWarn(cur);
   };
 
   const resetCode = () =>
@@ -168,7 +207,11 @@ export function Exam({
       body:
         parts.join(", ") +
         "." +
-        (hasCode && !fb ? " Coding tasks are tested when you submit." : "") +
+        (hasCode && !fb
+          ? cb
+            ? " Challenges are graded on all their tests, hidden ones included, when you submit."
+            : " Coding tasks are tested when you submit."
+          : "") +
         (s.ends ? " You can't change answers after submitting." : ""),
       cancelLabel: "Keep working",
       confirm: { label: fb ? "Finish" : "Submit", onConfirm: () => onFinish("submit") },
@@ -285,28 +328,38 @@ export function Exam({
     );
   };
 
-  const runOutput = (i: number, lang: TaskLang, total: number) => {
+  const runOutput = (i: number, t: CodingTask) => {
     if (running === i) {
       return (
         <div role="status" className="flex items-center gap-2 text-sm text-muted">
           <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-accent" />
-          {lang === "python" && !pythonReady() ? "Loading the Python runtime (first run only, a few seconds)…" : "Running tests…"}
+          {t.lang === "python" && !pythonReady()
+            ? "Loading the Python runtime (first run only, a few seconds)…"
+            : t.lang === "react" && !reactReady()
+              ? "Loading React and Babel (first run only, a few seconds)…"
+              : "Running tests…"}
         </div>
       );
     }
     const run = s.runs[i];
+    const hiddenN = t.tests.filter((x) => hiddenTest(s, x)).length;
     if (!run) {
       return (
         <div className="flex flex-wrap items-center gap-2.5 text-sm">
           <Pill tone="info">not run yet</Pill>
           <span className="text-xs text-subtle">
-            {fb ? "Run as often as you like." : "Run as often as you like. When you submit, your final code is tested and scored."}
+            {fb
+              ? "Run as often as you like."
+              : hiddenN
+                ? `Run checks the ${t.tests.length - hiddenN} sample tests. When you submit, ${hiddenN} hidden tests grade your final code too.`
+                : "Run as often as you like. When you submit, your final code is tested and scored."}
           </span>
         </div>
       );
     }
-    const passed = run.tests.filter((x) => x.passed).length;
-    const of = run.tests.length || total;
+    const shown = run.tests.filter((_, k) => !hiddenTest(s, t.tests[k] ?? {}));
+    const passed = shown.filter((x) => x.passed).length;
+    const of = shown.length || t.tests.length - hiddenN;
     const pill =
       run.error && !run.tests.length ? (
         <Pill tone="bad">error</Pill>
@@ -322,12 +375,13 @@ export function Exam({
         <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
           {pill}
           <span className="font-mono font-medium tabular-nums text-fg">
-            {passed}/{of} tests
+            {passed}/{of} {hiddenN ? "sample tests" : "tests"}
           </span>
+          {hiddenN > 0 && <span className="text-xs text-subtle">+ {hiddenN} hidden, graded when you submit</span>}
           {run.code !== s.code[i] && <span className="text-xs text-subtle">Code changed since this run</span>}
         </div>
         {run.error && <ErrorBox>{run.error}</ErrorBox>}
-        {run.tests.length > 0 && <TestList tests={run.tests} />}
+        {shown.length > 0 && <TestList tests={shown} />}
         {run.logs && <LogBox logs={run.logs} />}
       </>
     );
@@ -336,22 +390,26 @@ export function Exam({
   const taskView = () => {
     if (it.k !== "t") return null;
     const t = bank.T[it.id];
+    const hiddenN = t.tests.filter((x) => hiddenTest(s, x)).length;
     return (
       <>
-        {itemHead("Coding")}
+        {itemHead(cb ? "Challenge" : "Coding")}
         <div className="mt-5 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 font-mono text-xs text-subtle">
           <LangChip lang={t.lang} long />
           <span>{t.level}</span>
           <span>~{t.minutes} min</span>
           <span>
-            {bank.test.taskPoints} points · {t.tests.length} tests
+            {taskPointsFor(bank, s)} points ·{" "}
+            {hiddenN ? `${t.tests.length - hiddenN} sample + ${hiddenN} hidden tests` : `${t.tests.length} tests`}
           </span>
         </div>
         <h2 className="mt-2.5 text-2xl font-semibold tracking-tight text-fg">{t.title}</h2>
-        <Paras text={t.prompt} className="mt-3 max-w-[74ch] text-[15.5px] leading-relaxed text-fg-2" />
+        <Paras lines text={t.prompt} className="mt-3 max-w-[74ch] text-[15.5px] leading-relaxed text-fg-2" />
         <div className="mt-5 border border-line bg-surface-2/40">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface py-1.5 pl-3 pr-1.5">
-            <span className="font-mono text-xs text-muted">{t.lang === "python" ? "solution.py" : "solution.js"}</span>
+            <span className="font-mono text-xs text-muted">
+              {t.lang === "python" ? (t.stdin ? "main.py" : "solution.py") : t.lang === "react" ? "App.jsx · JSX or TSX" : t.stdin ? "main.js" : "solution.js"}
+            </span>
             <div className="flex gap-1.5">
               <Button size="sm" variant="subtle" onClick={resetCode}>
                 Reset
@@ -361,14 +419,32 @@ export function Exam({
               </Button>
             </div>
           </div>
-          <CodeEditor key={cur} value={s.code[cur] ?? ""} lang={t.lang} onChange={(v) => setCode(cur, v)} onRun={runCurrent} />
+          <CodeEditor
+            key={cur}
+            value={s.code[cur] ?? ""}
+            lang={t.lang}
+            onChange={(v) => setCode(cur, v)}
+            onRun={runCurrent}
+            onPaste={onPaste}
+          />
         </div>
+        {pasteWarn === cur && (
+          <p role="alert" className="mt-2 border-l-2 border-warn bg-warn/10 px-3 py-2 text-xs text-fg-2">
+            That paste came from outside the editor.{" "}
+            {cb ? "Coderbyte flags this in your report; it's counted in the integrity box above." : "Coderbyte would flag it in a real assessment."}{" "}
+            Type the code instead.
+          </p>
+        )}
         <p className="mt-2 text-xs text-subtle">
           {t.lang === "python"
             ? "Python runs in this tab on Brython. An infinite loop will freeze the tab. Tab indents; Esc leaves the editor."
-            : "Runs as plain JavaScript in a sandboxed worker, so remove TypeScript annotations. Tab indents; Esc leaves the editor."}
+            : t.lang === "react"
+              ? "Babel compiles it and React 18 runs it in a sandboxed frame; each test starts from a fresh render. Tab indents; Esc leaves the editor."
+              : "Runs as plain JavaScript in a sandboxed worker, so remove TypeScript annotations. Tab indents; Esc leaves the editor."}
+          {t.stdin && ` Your program's ${t.lang === "python" ? "input()" : "readline()"} gets the first example; its output shows under the tests.`}
         </p>
-        <div className="mt-4">{runOutput(cur, t.lang, t.tests.length)}</div>
+        {t.lang === "react" && <ReactPreview key={cur} task={t} code={s.code[cur] ?? ""} rev={previewRev} />}
+        <div className="mt-4">{runOutput(cur, t)}</div>
         {fb && (
           <Reveal label="Reference solution">
             <CodeBlock flush src={t.solution} lang={t.lang} />
@@ -403,6 +479,23 @@ export function Exam({
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2.5">
+            {s.integrity && (
+              <div
+                title="What Coderbyte would flag: pastes from outside the editor, and leaving the tab"
+                className={`flex flex-col items-end border px-2.5 py-1 leading-tight ${
+                  s.integrity.pastes || s.integrity.leaves ? "border-warn/50 bg-warn/10 text-warn" : "border-line text-fg"
+                }`}
+              >
+                <span
+                  className={`font-mono text-[10px] uppercase tracking-[0.12em] ${s.integrity.pastes || s.integrity.leaves ? "text-warn" : "text-subtle"}`}
+                >
+                  integrity
+                </span>
+                <b className="whitespace-nowrap font-mono text-sm font-medium tabular-nums">
+                  {s.integrity.pastes} paste{s.integrity.pastes === 1 ? "" : "s"} · {s.integrity.leaves} left
+                </b>
+              </div>
+            )}
             <div
               className={`flex flex-col items-end border px-2.5 py-1 leading-tight ${
                 gauge.low ? "border-warn/50 bg-warn/10 text-warn" : "border-line text-fg"
@@ -462,11 +555,13 @@ export function Exam({
                     );
                   } else {
                     const run = s.runs[i];
+                    const task = bank.T[item.id];
+                    const seen = run ? run.tests.filter((_, k) => !hiddenTest(s, task.tests[k] ?? {})) : [];
                     marks = (
                       <span className="flex items-center gap-1.5 font-mono text-[11px] text-muted">
-                        <LangChip lang={bank.T[item.id].lang} />
-                        {run?.tests.length
-                          ? `${run.tests.filter((x) => x.passed).length}/${run.tests.length} tests`
+                        <LangChip lang={task.lang} />
+                        {seen.length
+                          ? `${seen.filter((x) => x.passed).length}/${seen.length} ${seen.length < run!.tests.length ? "samples" : "tests"}`
                           : codeTouched(bank, s, i)
                             ? "edited"
                             : "not started"}
@@ -516,8 +611,25 @@ export function Exam({
   );
 }
 
-/** Plain textarea with a line-number gutter, Tab indent and auto-indent on Enter. */
-function CodeEditor({ value, lang, onChange, onRun }: { value: string; lang: TaskLang; onChange: (v: string) => void; onRun: () => void }) {
+/* Text last copied or cut inside an editor: pasting it back isn't "from outside". */
+let editorClipboard = "";
+const norm = (x: string) => x.replace(/\s+/g, " ").trim();
+
+/** Plain textarea with a line-number gutter, Tab indent and auto-indent on Enter.
+ *  `onPaste(outside)` reports pastes; outside = not what was last copied in an editor. */
+function CodeEditor({
+  value,
+  lang,
+  onChange,
+  onRun,
+  onPaste,
+}: {
+  value: string;
+  lang: TaskLang;
+  onChange: (v: string) => void;
+  onRun: () => void;
+  onPaste?: (outside: boolean) => void;
+}) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const gutter = useRef<HTMLPreElement>(null);
   const unit = lang === "python" ? "    " : "  ";
@@ -572,6 +684,12 @@ function CodeEditor({ value, lang, onChange, onRun }: { value: string; lang: Tas
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
+        onCopy={(e) => (editorClipboard = e.currentTarget.value.slice(e.currentTarget.selectionStart, e.currentTarget.selectionEnd))}
+        onCut={(e) => (editorClipboard = e.currentTarget.value.slice(e.currentTarget.selectionStart, e.currentTarget.selectionEnd))}
+        onPaste={(e) => {
+          const text = norm(e.clipboardData.getData("text/plain"));
+          if (text) onPaste?.(text !== norm(editorClipboard));
+        }}
         onScroll={() => {
           if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop;
         }}
@@ -583,6 +701,39 @@ function CodeEditor({ value, lang, onChange, onRun }: { value: string; lang: Tas
         aria-label="Code editor"
         className="block h-[360px] max-h-[520px] min-h-[300px] w-full resize-y overflow-auto whitespace-pre bg-transparent px-4 py-3.5 font-mono text-[13px] leading-[1.6] text-fg outline-none [tab-size:4] focus-visible:shadow-[inset_0_0_0_2px_var(--accent)]"
       />
+    </div>
+  );
+}
+
+/** Live render of a React task's code (no tests), refreshed after each run. */
+function ReactPreview({ task, code, rev }: { task: CodingTask; code: string; rev: number }) {
+  const box = useRef<HTMLDivElement>(null);
+  const codeRef = useRef(code);
+  codeRef.current = code;
+  const [own, setOwn] = useState(0);
+  const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: true, error: null });
+
+  useEffect(() => {
+    let live = true;
+    setState({ busy: true, error: null });
+    previewReact(box.current!, task, codeRef.current).then((error) => live && setState({ busy: false, error }));
+    return () => {
+      live = false;
+    };
+  }, [task, rev, own]);
+
+  return (
+    <div className="mt-4 border border-line">
+      <div className="flex items-center justify-between gap-2 border-b border-line bg-surface py-1.5 pl-3 pr-1.5">
+        <span className="font-mono text-xs text-muted">
+          Preview{state.busy && <span className="text-subtle"> · {reactReady() ? "rendering…" : "loading React…"}</span>}
+        </span>
+        <Button size="sm" variant="subtle" onClick={() => setOwn((n) => n + 1)}>
+          Refresh
+        </Button>
+      </div>
+      {state.error && <ErrorBox>{state.error}</ErrorBox>}
+      <div ref={box} className="h-[280px] min-h-[160px] resize-y overflow-hidden bg-white" />
     </div>
   );
 }

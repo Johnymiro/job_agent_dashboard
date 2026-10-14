@@ -1,9 +1,9 @@
 /* Session logic for a prep test: building item lists, grading, scoring and the
    per-test browser storage (history, per-question record, best coding runs). */
 import type { RunResult } from "./runners";
-import type { CodingTask, PrepSection, PrepTest, Question } from "./types";
+import type { CoderbyteRound, CodingTask, PrepSection, PrepTest, Question } from "./types";
 
-export type Mode = "mock" | "sprint" | "drill" | "lab" | "review";
+export type Mode = "mock" | "sprint" | "drill" | "lab" | "review" | "coderbyte";
 
 export type Item = { k: "q"; id: string; order: number[] } | { k: "t"; id: string };
 
@@ -12,10 +12,20 @@ export interface StoredRun extends RunResult {
   code: string;
 }
 
+/** What Coderbyte would flag: pastes from outside the editor, and leaving the tab. */
+export interface Integrity {
+  pastes: number;
+  leaves: number;
+  awayMs: number;
+}
+
 export interface Session {
   v: 1;
   mode: Mode;
   section: string | null;
+  /** coderbyte mode: the round's id */
+  round?: string;
+  integrity?: Integrity;
   title: string;
   items: Item[];
   ans: Record<number, number[]>;
@@ -58,6 +68,8 @@ export interface Summary {
   answered: number;
   secs: number;
   reason: string;
+  round?: string;
+  integrity?: Integrity;
 }
 
 /** last = 1 if the most recent answer was right */
@@ -140,6 +152,7 @@ export function clearProgress(slug: string) {
 export function pendingSession(bank: Bank): Session | null {
   const s = load<Session | null>(bank.test.slug, "session", null);
   if (!s || s.v !== 1 || s.done || !Array.isArray(s.items)) return null;
+  if (s.mode === "coderbyte" && !findRound(bank.test, s.round)) return null;
   if (!s.items.every((it) => (it.k === "q" ? bank.Q[it.id] : bank.T[it.id]))) return null;
   return s;
 }
@@ -178,7 +191,29 @@ export function mockShape(test: PrepTest) {
   return { minutes: test.mock.minutes, items: qs + tasks, points: qs + tasks * test.taskPoints, tasks };
 }
 
-function buildItems(test: PrepTest, mode: Mode, section?: string): Item[] {
+export const findRound = (test: PrepTest, id?: string | null) => test.coderbyte?.rounds.find((r) => r.id === id) ?? null;
+
+/** Challenge, question and point counts of a Coderbyte round (for the start page). */
+export function roundShape(test: PrepTest, round: CoderbyteRound) {
+  const questions = round.questions.reduce((n, x) => n + Math.min(x.count, inSection(test, x.section).length), 0);
+  const challenges = round.challenges.filter((pool) => pool.some((id) => test.tasks.some((t) => t.id === id))).length;
+  return { minutes: round.minutes, challenges, questions, points: questions + challenges * (test.coderbyte?.points ?? 0) };
+}
+
+/** One challenge from each pool (least-solved first), then the multiple choice. */
+function roundItems(test: PrepTest, round: CoderbyteRound): Item[] {
+  const best = load<TaskBest>(test.slug, "taskbest", {});
+  const solved = (id: string) => (best[id] ? best[id].p / best[id].t : -1);
+  const tasks = round.challenges
+    .map((pool) => shuffle(pool.filter((id) => test.tasks.some((t) => t.id === id))).sort((a, b) => solved(a) - solved(b))[0])
+    .filter(Boolean)
+    .map((id) => ({ k: "t", id }) as Item);
+  const qs = shuffle(round.questions.flatMap((x) => prioritized(test.slug, inSection(test, x.section)).slice(0, x.count)));
+  return tasks.concat(qs.map(qItem));
+}
+
+function buildItems(test: PrepTest, mode: Mode, section?: string, round?: CoderbyteRound | null): Item[] {
+  if (mode === "coderbyte" && round) return roundItems(test, round);
   if (mode === "mock" && test.mock) {
     const qs = shuffle(test.sections.flatMap((s) => prioritized(test.slug, inSection(test, s.id)).slice(0, test.mock!.perSection)));
     const pools: Record<string, CodingTask[]> = {};
@@ -204,14 +239,18 @@ function buildItems(test: PrepTest, mode: Mode, section?: string): Item[] {
 export function newSession(
   bank: Bank,
   mode: Mode,
-  opt: { section?: string; items?: Item[]; title?: string; start?: number } = {},
+  opt: { section?: string; round?: string; items?: Item[]; title?: string; start?: number } = {},
 ): Session {
   const { test } = bank;
-  const items = opt.items || buildItems(test, mode, opt.section);
-  const minutes = mode === "mock" ? (test.mock?.minutes ?? 0) : mode === "sprint" ? (test.sprint?.minutes ?? 0) : 0;
+  const round = mode === "coderbyte" ? findRound(test, opt.round) : null;
+  const items = opt.items || buildItems(test, mode, opt.section, round);
+  const minutes =
+    mode === "mock" ? (test.mock?.minutes ?? 0) : mode === "sprint" ? (test.sprint?.minutes ?? 0) : round ? round.minutes : 0;
   const title =
     opt.title ||
-    (mode === "drill"
+    (round
+      ? `Coderbyte · ${round.name}`
+      : mode === "drill"
       ? "Drill · " + bank.S[opt.section!].name
       : mode === "sprint"
         ? `Sprint · ${items.length} questions`
@@ -229,6 +268,7 @@ export function newSession(
     v: 1,
     mode,
     section: opt.section || null,
+    ...(round && { round: round.id, integrity: { pastes: 0, leaves: 0, awayMs: 0 } }),
     title,
     items,
     ans: {},
@@ -255,6 +295,19 @@ export function isAnswered(bank: Bank, s: Session, i: number) {
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
+/** Points per coding task in this session: Coderbyte rates each challenge out of 10. */
+export const taskPointsFor = (bank: Bank, s: Session) =>
+  s.mode === "coderbyte" ? (bank.test.coderbyte?.points ?? bank.test.taskPoints) : bank.test.taskPoints;
+
+/** A test counts as hidden only in a Coderbyte round that's still open. */
+export const hiddenTest = (s: Session, t: { hidden?: boolean }) => s.mode === "coderbyte" && !s.done && !!t.hidden;
+
+/** Coderbyte's employer report reads: not detected, likely, or detected. */
+export function integrityLevel(x: Integrity | undefined): "not detected" | "likely" | "detected" {
+  if (!x || (!x.pastes && !x.leaves)) return "not detected";
+  return x.pastes >= 3 || x.leaves >= 5 || x.awayMs >= 120_000 ? "detected" : "likely";
+}
+
 export function grade(bank: Bank, s: Session, i: number): Grade {
   const it = s.items[i];
   if (it.k === "q") {
@@ -264,7 +317,7 @@ export function grade(bank: Bank, s: Session, i: number): Grade {
     return { earned: correct ? 1 : 0, possible: 1, answered: sel.length > 0, correct };
   }
   const t = bank.T[it.id];
-  const pts = bank.test.taskPoints;
+  const pts = taskPointsFor(bank, s);
   const run = s.runs[i];
   const touched = codeTouched(bank, s, i);
   if (run?.runtimeMissing)
@@ -316,5 +369,6 @@ export function summarize(bank: Bank, s: Session): Summary {
     answered,
     secs: Math.round(((s.finished || Date.now()) - s.started) / 1000),
     reason: s.reason || "",
+    ...(s.round && { round: s.round, integrity: s.integrity }),
   };
 }

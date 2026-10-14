@@ -12,10 +12,12 @@ import {
   load,
   mockShape,
   pendingSession,
+  roundShape,
 } from "@/lib/prep/engine";
-import { FILL, LangChip, TEXT, dur, levelTone, mmss } from "./parts";
+import type { CodingTask } from "@/lib/prep/types";
+import { FILL, Inline, LangChip, TEXT, dur, levelTone, mmss } from "./parts";
 
-const LANG = { python: "Python", js: "JavaScript" };
+const LANG = { python: "Python", js: "JavaScript", react: "React" };
 
 function Facts({ items }: { items: [string, React.ReactNode][] }) {
   return (
@@ -37,7 +39,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 /** What the simulator hands its start page (tests use PrepHome; subjects have their own). */
 export interface HomeProps {
   bank: Bank;
-  onStart: (mode: Mode, opt?: { section?: string; start?: number }) => void;
+  onStart: (mode: Mode, opt?: { section?: string; start?: number; round?: string }) => void;
   onResume: () => void;
   onDiscard: () => void;
   onClearHistory: () => void;
@@ -60,6 +62,15 @@ export function PrepHome({ bank, onStart, onResume, onDiscard, onClearHistory }:
     .map(([l, c]) => `${c === 1 ? "one" : c} ${LANG[l as keyof typeof LANG]}`)
     .join(" and ");
   const plural = Object.values(perLang).some((c) => c > 1);
+  // panel numbers shift down by one when the Coderbyte panel leads
+  const n = (i: number) => String(i + (test.coderbyte ? 1 : 0)).padStart(2, "0");
+  const cbIds = new Set(test.coderbyte?.rounds.flatMap((r) => r.challenges.flat()) ?? []);
+  const labGroups: [string, CodingTask[]][] = cbIds.size
+    ? [
+        ["Coderbyte-style challenges", test.tasks.filter((t) => cbIds.has(t.id))],
+        ["More practice tasks", test.tasks.filter((t) => !cbIds.has(t.id))],
+      ]
+    : [["", test.tasks]];
 
   return (
     <div className="space-y-6">
@@ -85,9 +96,11 @@ export function PrepHome({ bank, onStart, onResume, onDiscard, onClearHistory }:
 
       {pend && <ResumeNotice bank={bank} pend={pend} onResume={onResume} onDiscard={onDiscard} />}
 
+      {test.coderbyte && <CoderbytePanel bank={bank} hist={hist} onStart={(round) => onStart("coderbyte", { round })} />}
+
       {(mock || test.sprint) && (
         <div>
-          <PanelTitle index="01" className="mb-3">
+          <PanelTitle index={n(1)} className="mb-3">
             Timed practice
           </PanelTitle>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -137,7 +150,7 @@ export function PrepHome({ bank, onStart, onResume, onDiscard, onClearHistory }:
 
       <div>
         <PanelTitle
-          index="02"
+          index={n(2)}
           className="mb-3"
           aside={<span className="text-xs text-subtle">Untimed · answer and explanation after each question</span>}
         >
@@ -185,41 +198,49 @@ export function PrepHome({ bank, onStart, onResume, onDiscard, onClearHistory }:
       {test.tasks.length > 0 && (
         <div>
           <PanelTitle
-            index="03"
+            index={n(3)}
             className="mb-3"
-            aside={<span className="text-xs text-subtle">Untimed · reference solutions included</span>}
+            aside={<span className="text-xs text-subtle">Untimed · every test shown · reference solutions included</span>}
           >
             Coding lab
           </PanelTitle>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">
-            {test.tasks.map((t, idx) => {
-              const b = best[t.id];
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => onStart("lab", { start: idx })}
-                  className="panel flex flex-col gap-2 border border-line bg-surface p-4 text-left transition-colors hover:border-accent/60"
-                >
-                  <span className="flex items-center gap-2 font-mono text-[11px] text-subtle">
-                    <LangChip lang={t.lang} /> {t.level} · ~{t.minutes} min
-                  </span>
-                  <span className="text-[15px] font-semibold text-fg">{t.title}</span>
-                  <span className={`mt-auto text-xs ${b && b.p === b.t ? "text-good" : "text-subtle"}`}>
-                    {b ? `best: ${b.p}/${b.t} tests` : "not attempted"}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="space-y-4">
+            {labGroups.map(([label, tasks]) => (
+              <div key={label}>
+                {label && <h3 className="mb-2 text-sm font-medium text-fg-2">{label}</h3>}
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))] gap-3">
+                  {tasks.map((t) => {
+                    const b = best[t.id];
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => onStart("lab", { start: test.tasks.indexOf(t) })}
+                        className="panel flex flex-col gap-2 border border-line bg-surface p-4 text-left transition-colors hover:border-accent/60"
+                      >
+                        <span className="flex items-center gap-2 font-mono text-[11px] text-subtle">
+                          <LangChip lang={t.lang} /> {t.level} · ~{t.minutes} min
+                        </span>
+                        <span className="text-[15px] font-semibold text-fg">{t.title}</span>
+                        <span className={`mt-auto text-xs ${b && b.p === b.t ? "text-good" : "text-subtle"}`}>
+                          {b ? `best: ${b.p}/${b.t} tests` : "not attempted"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
           <p className="mt-2 text-xs text-subtle">
-            Python runs in this tab on Brython (loaded on first run); JavaScript runs in a sandboxed worker.
+            Python runs in this tab on Brython (loaded on first run); JavaScript runs in a sandboxed worker
+            {test.tasks.some((t) => t.lang === "react") && "; React runs on React 18 in a sandboxed frame, compiled by Babel"}.
           </p>
         </div>
       )}
 
       <div>
         <PanelTitle
-          index="04"
+          index={n(4)}
           className="mb-3"
           aside={
             hist.length > 0 && (
@@ -330,5 +351,64 @@ export function AttemptsTable({ hist, target }: { hist: Summary[]; target: numbe
         </div>
       )}
     </Card>
+  );
+}
+
+/** The Coderbyte rounds (Python, React) and what to know about the platform. */
+function CoderbytePanel({ bank, hist, onStart }: { bank: Bank; hist: Summary[]; onStart: (round: string) => void }) {
+  const { test } = bank;
+  const cb = test.coderbyte!;
+  return (
+    <div>
+      <PanelTitle index="01" className="mb-3" aside={<span className="text-xs text-subtle">The real format · ~2 h each · scored /10 per challenge</span>}>
+        Coderbyte assessments
+      </PanelTitle>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {cb.rounds.map((round) => {
+          const shape = roundShape(test, round);
+          const tries = hist.filter((h) => h.mode === "coderbyte" && h.round === round.id);
+          const top = tries.length ? Math.max(...tries.map((h) => h.pct)) : null;
+          const tone = levelTone(top, test.target);
+          return (
+            <Card key={round.id} className="flex flex-col gap-3.5 border-t-2 border-t-accent p-5 sm:p-6">
+              <h2 className="text-xl font-semibold tracking-tight text-fg">{round.name}</h2>
+              <Facts
+                items={[
+                  ["time", round.minutes % 60 === 0 ? `${round.minutes / 60} h` : `${round.minutes} min`],
+                  ["challenges", shape.challenges],
+                  ["questions", shape.questions],
+                  ["best", top == null ? "—" : <span className={tone ? TEXT[tone] : ""}>{top}%</span>],
+                ]}
+              />
+              <p className="max-w-[52ch] text-sm leading-relaxed text-muted">
+                <Inline text={round.blurb} /> Challenges are drawn from {round.challenges.map((p) => p.length).join(" / ")} options, least-solved
+                first, so retakes differ.
+              </p>
+              <Button variant="primary" className="mt-auto self-start" onClick={() => onStart(round.id)}>
+                Start {round.name.toLowerCase()}
+              </Button>
+            </Card>
+          );
+        })}
+      </div>
+      <Card className="mt-4 p-5 sm:p-6">
+        <h3 className="text-base font-semibold tracking-tight text-fg">How Coderbyte works, and how not to lose points</h3>
+        <ol className="mt-3 grid list-decimal gap-x-8 gap-y-2.5 pl-5 text-sm leading-relaxed text-fg-2 lg:grid-cols-2">
+          {cb.tips.map((tip, i) => (
+            <li key={i} className="pl-1 marker:font-mono marker:text-xs marker:text-subtle">
+              <Inline text={tip} />
+            </li>
+          ))}
+        </ol>
+        <p className="mt-4 flex flex-wrap gap-x-3 gap-y-1 border-t border-line pt-3 text-xs text-subtle">
+          <span>Sources:</span>
+          {cb.sources.map((src, i) => (
+            <span key={i}>
+              <Inline text={src} />
+            </span>
+          ))}
+        </p>
+      </Card>
+    </div>
   );
 }

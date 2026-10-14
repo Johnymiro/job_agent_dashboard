@@ -110,6 +110,8 @@ function TestCard({ test }: { test: PrepTest }) {
   const seen = test.questions.filter((q) => st[q.id]).length;
   const mocks = hist.filter((h) => h.mode === "mock");
   const bestMock = mocks.length ? Math.max(...mocks.map((h) => h.pct)) : null;
+  const rounds = hist.filter((h) => h.mode === "coderbyte");
+  const bestRound = rounds.length ? Math.max(...rounds.map((h) => h.pct)) : null;
   const last = hist[0];
   const pending = pendingSession(bankFor(test));
 
@@ -141,10 +143,13 @@ function TestCard({ test }: { test: PrepTest }) {
           </span>
         ))}
         {test.tasks.length > 0 && <span className="border border-line px-1.5 py-px font-mono text-[10.5px] text-muted">CODE</span>}
+        {test.coderbyte && <span className="border border-accent/60 px-1.5 py-px font-mono text-[10.5px] text-accent">CODERBYTE</span>}
       </div>
       <dl className="grid grid-cols-3 gap-3 border-t border-line pt-4">
         {stat("seen", `${seen}/${test.questions.length}`)}
-        {stat("last", last ? `${last.pct}%` : "—", last ? tone(last.pct) : "text-faint")}
+        {test.coderbyte
+          ? stat("best coderbyte", bestRound == null ? "—" : `${bestRound}%`, bestRound == null ? "text-faint" : tone(bestRound))
+          : stat("last", last ? `${last.pct}%` : "—", last ? tone(last.pct) : "text-faint")}
         {stat("best mock", bestMock == null ? "—" : `${bestMock}%`, bestMock == null ? "text-faint" : tone(bestMock))}
       </dl>
       <span className="mt-auto inline-flex items-center gap-1.5 text-sm font-medium text-accent">

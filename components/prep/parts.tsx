@@ -1,6 +1,6 @@
 import React from "react";
 import type { TestResult } from "@/lib/prep/runners";
-import type { Question } from "@/lib/prep/types";
+import type { Question, TaskLang } from "@/lib/prep/types";
 
 export const LETTERS = "ABCDEFGH";
 export const pad = (n: number) => String(n).padStart(2, "0");
@@ -57,15 +57,55 @@ export function Inline({ text }: { text: string }) {
   );
 }
 
-export function Paras({ text, className = "" }: { text: string; className?: string }) {
+/** Blank-line paragraphs. With `lines`, a block of "- " or "1. " lines is a list and other
+ *  line breaks are kept (task prompts); without it, line breaks are soft (lessons). */
+export function Paras({ text, className = "", lines = false }: { text: string; className?: string; lines?: boolean }) {
   return (
     <div className={`space-y-3 ${className}`}>
-      {text.split(/\n\n+/).map((p, i) => (
-        <p key={i}>
-          <Inline text={p} />
-        </p>
-      ))}
+      {text.split(/\n\n+/).map((p, i) =>
+        lines ? (
+          <Block key={i} text={p} />
+        ) : (
+          <p key={i}>
+            <Inline text={p} />
+          </p>
+        ),
+      )}
     </div>
+  );
+}
+
+function Block({ text }: { text: string }) {
+  const rows = text.split("\n");
+  if (rows.every((r) => r.startsWith("- ")))
+    return (
+      <ul className="list-disc space-y-1.5 pl-5 marker:text-subtle">
+        {rows.map((r, i) => (
+          <li key={i}>
+            <Inline text={r.slice(2)} />
+          </li>
+        ))}
+      </ul>
+    );
+  if (rows.every((r) => /^\d+\. /.test(r)))
+    return (
+      <ol className="list-decimal space-y-1.5 pl-5 marker:font-mono marker:text-xs marker:text-subtle">
+        {rows.map((r, i) => (
+          <li key={i}>
+            <Inline text={r.replace(/^\d+\. /, "")} />
+          </li>
+        ))}
+      </ol>
+    );
+  return (
+    <p>
+      {rows.map((r, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <br />}
+          <Inline text={r} />
+        </React.Fragment>
+      ))}
+    </p>
   );
 }
 
@@ -304,11 +344,11 @@ export function LogBox({ logs }: { logs: string }) {
   );
 }
 
-/** Python / JavaScript chip. */
-export function LangChip({ lang, long = false }: { lang: "python" | "js"; long?: boolean }) {
+const LANG_NAMES = { python: ["PY", "Python"], js: ["JS", "JavaScript"], react: ["REACT", "React"] } as const;
+
+/** Python / JavaScript / React chip. */
+export function LangChip({ lang, long = false }: { lang: TaskLang; long?: boolean }) {
   return (
-    <span className="rounded-sm bg-fg px-1.5 py-px font-mono text-[10.5px] font-medium text-bg">
-      {long ? (lang === "python" ? "Python" : "JavaScript") : lang === "python" ? "PY" : "JS"}
-    </span>
+    <span className="rounded-sm bg-fg px-1.5 py-px font-mono text-[10.5px] font-medium text-bg">{LANG_NAMES[lang][long ? 1 : 0]}</span>
   );
 }

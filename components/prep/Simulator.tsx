@@ -15,6 +15,7 @@ import {
   codeTouched,
   drop,
   feedbackMode,
+  findRound,
   grade,
   load,
   newSession,
@@ -100,8 +101,20 @@ export function Simulator({
     setView("exam");
     window.scrollTo(0, 0);
   };
-  const start = (mode: Mode, opt?: { section?: string; start?: number; items?: Item[]; title?: string }) =>
-    open(newSession(bank, mode, opt));
+  type StartOpt = { section?: string; round?: string; start?: number; items?: Item[]; title?: string };
+  const start = (mode: Mode, opt?: StartOpt) => open(newSession(bank, mode, opt));
+
+  // a Coderbyte round starts like the real one: rules first, then the clock
+  const startRound = (round?: string) => {
+    const r = findRound(bank.test, round);
+    if (!r) return;
+    setDialog({
+      title: `Begin the ${r.name}?`,
+      body: `The ${r.minutes % 60 === 0 ? `${r.minutes / 60}-hour` : `${r.minutes}-minute`} clock starts now and can't be paused, as on Coderbyte. Every question is visible from the start. Pasting from outside the editor and leaving this tab are counted, like Coderbyte's integrity report. Sample tests show while you work; hidden ones grade you at the end.`,
+      cancelLabel: "Not yet",
+      confirm: { label: "Begin assessment", onConfirm: () => start("coderbyte", { round: r.id }) },
+    });
+  };
 
   const finish = async (sess: Session, reason: "submit" | "time") => {
     if (finishing.current) return;
@@ -178,7 +191,7 @@ export function Simulator({
         <Fragment key={rev}>
           {renderHome({
             bank,
-            onStart: start,
+            onStart: (mode, opt) => (mode === "coderbyte" ? startRound(opt?.round) : start(mode, opt)),
             onResume: resume,
             onDiscard: () =>
               setDialog({
@@ -232,7 +245,7 @@ export function Simulator({
             if (items.length) start("drill", { items, title: `Retry · ${items.length} missed` });
           }}
           onDrill={(section) => start("drill", { section })}
-          onNew={(mode) => start(mode)}
+          onNew={(mode, round) => (mode === "coderbyte" ? startRound(round) : start(mode))}
           onHome={goHome}
         />
       )}

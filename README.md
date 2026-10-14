@@ -31,7 +31,7 @@ add the dashboard origin to the API's `CORS_ORIGINS`.
 | `/runs` | Trigger the full pipeline or one step; live per-step stats |
 | `/settings` | Daily cap & warm-up, thresholds, pipeline time, profile + CV upload, mail test, do-not-contact list |
 | `/prep` | Technical-test prep packs and subjects to learn, with progress per test and subject |
-| `/prep/<slug>` | One test's simulator: timed mock exam, sprint, topic drills, coding lab (Python on Brython, JS in a worker, real tests), results with explanations. Progress is kept in this browser (`localStorage`, keys `prep.<slug>.*`) |
+| `/prep/<slug>` | One test's simulator: Coderbyte-style rounds (when the test has them), timed mock exam, sprint, topic drills, coding lab (Python on Brython, JS in a worker, React 18 in a sandboxed frame, real tests), results with explanations. Progress is kept in this browser (`localStorage`, keys `prep.<slug>.*`) |
 | `/prep/learn/<subject>` | A subject (Python, React & TypeScript): lessons with progress, and a quick review of their checks (missed first) on the same simulator |
 | `/prep/learn/<subject>/<lesson>` | One lesson: explanations, examples, callouts, quick checks with instant feedback, "mark as learned", prev / next |
 
@@ -40,7 +40,11 @@ add the dashboard origin to the API's `CORS_ORIGINS`.
 1. Write `lib/prep/tests/<slug>.ts` exporting a `PrepTest` (shape and comments in `lib/prep/types.ts`; `bnp-paribas.ts` is a full example): sections, multiple-choice questions (`a` = indexes of the right options), coding tasks with tests, and the mock/sprint settings. Leave out `mock`, `sprint` or `tasks` if the test doesn't need them.
 2. Add it to `PREP_TESTS` in `lib/prep/index.ts`.
 
-That's it: `/prep` lists it and `/prep/<slug>` is generated at build time. Python test `expected` values are Python literals as strings (`"[1, 2]"`); JS ones are plain JSON values.
+That's it: `/prep` lists it and `/prep/<slug>` is generated at build time. Python test `expected` values are Python literals as strings (`"[1, 2]"`); JS and React ones are plain JSON values.
+
+**Coderbyte-style rounds** (`coderbyte` in the `PrepTest`, see `bnp-coderbyte.ts`): one clock that can't be paused, one challenge drawn from each pool, then multiple choice; each challenge scores out of `points`. Tests marked `hidden` stay hidden until you submit, and pasting from outside the editor or leaving the tab is counted like Coderbyte's integrity report. Coderbyte-format programs set `stdin`: `input()` / `readline()` returns it, and tests call `_main(value)` (Python) or `__main(value)` (JS) to run the whole program and get what it printed. `_uses_name` / `_has_comment` (Python) and `usesName` / `hasComment` (JS, React) check "use a variable named…" instructions.
+
+**React tasks** (`lang: "react"`): JSX or TSX, compiled by Babel and run on React 18 in a sandboxed iframe. Each test renders the app fresh, then evaluates its expression with DOM helpers: `$`, `$$`, `text`, `texts`, `value`, `click`, `type`, `choose`, `submit`, `settle`, `waitFor`, plus `source` (the code as text). `setup` runs before each render (e.g. a fake `fetch`) and gets `settle()`.
 
 ## Adding lessons or a subject
 

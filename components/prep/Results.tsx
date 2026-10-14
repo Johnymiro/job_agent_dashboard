@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Card, PageHeader, PanelTitle, Pill, Tabs } from "@/components/ui";
-import { type Bank, type Mode, type Session, type Summary, grade } from "@/lib/prep/engine";
+import { type Bank, type Mode, type Session, type Summary, findRound, grade, integrityLevel, taskPointsFor } from "@/lib/prep/engine";
 import { CodeBlock, ErrorBox, FILL, Inline, LangChip, Options, Paras, Reveal, TestList, dur, levelTone, pad } from "./parts";
 
 type Filter = "all" | "wrong" | "flagged" | "code";
@@ -21,7 +21,7 @@ export function Results({
   sess: Session;
   onRetryMissed: () => void;
   onDrill: (section: string) => void;
-  onNew: (mode: Mode) => void;
+  onNew: (mode: Mode, round?: string) => void;
   onHome: () => void;
 }) {
   const { test } = bank;
@@ -71,6 +71,7 @@ export function Results({
     .filter(([k]) => k === "all" || counts[k])
     .map(([value, label]) => ({ value, label, count: counts[value] }));
   const again = r.mode === "sprint" || r.mode === "review" ? r.mode : "mock";
+  const round = r.mode === "coderbyte" ? findRound(test, r.round) : null;
 
   return (
     <div className="space-y-5">
@@ -110,6 +111,7 @@ export function Results({
             </span>
           </div>
           <p className="max-w-[48ch] text-sm text-muted">{band[2]}</p>
+          {r.mode === "coderbyte" && <IntegrityReport r={r} />}
           <div className="mt-auto flex flex-wrap gap-2 pt-1">
             {missedQs > 0 && (
               <Button variant="primary" onClick={onRetryMissed}>
@@ -117,7 +119,11 @@ export function Results({
               </Button>
             )}
             {weakest && r.mode !== "drill" && <Button onClick={() => onDrill(weakest.k)}>Drill {bank.S[weakest.k].name}</Button>}
-            {test[again] && <Button onClick={() => onNew(again)}>New {again === "mock" ? "mock exam" : again}</Button>}
+            {round ? (
+              <Button onClick={() => onNew("coderbyte", round.id)}>New {round.name}</Button>
+            ) : (
+              test[again] && <Button onClick={() => onNew(again)}>New {again === "mock" ? "mock exam" : again}</Button>
+            )}
             <Button variant="subtle" onClick={onHome}>
               Back to {test.company}
             </Button>
@@ -132,7 +138,7 @@ export function Results({
             {order.map((k) => {
               const b = r.by[k];
               const pct = b.p ? Math.round((b.e / b.p) * 100) : 0;
-              const name = k === "code" ? "Coding tasks" : bank.S[k].name;
+              const name = k === "code" ? (round ? "Challenges" : "Coding tasks") : bank.S[k].name;
               const tone = levelTone(b.p ? pct : null, test.target);
               return (
                 <div
@@ -208,7 +214,7 @@ function ReviewItem({ bank, sess, i }: { bank: Bank; sess: Session; i: number })
     : !g.answered
       ? "not attempted"
       : run?.tests.length
-        ? `${g.passed}/${g.total} tests · ${g.earned}/${bank.test.taskPoints} pts`
+        ? `${g.passed}/${g.total} tests · ${g.earned}/${taskPointsFor(bank, sess)} pts`
         : "didn't run";
   return (
     <Card className={`min-w-0 border-l-4 p-4 sm:p-5 ${edge}`}>
@@ -232,5 +238,27 @@ function ReviewItem({ bank, sess, i }: { bank: Bank; sess: Session; i: number })
         <CodeBlock flush src={t.solution} lang={t.lang} />
       </Reveal>
     </Card>
+  );
+}
+
+/** What Coderbyte's employer report would show for this round. */
+function IntegrityReport({ r }: { r: Summary }) {
+  const x = r.integrity ?? { pastes: 0, leaves: 0, awayMs: 0 };
+  const level = integrityLevel(x);
+  const away = Math.round(x.awayMs / 1000);
+  return (
+    <div className="border border-line bg-surface-2/40 px-3.5 py-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-subtle">integrity</span>
+        <Pill tone={level === "not detected" ? "good" : level === "likely" ? "warn" : "bad"}>cheating {level}</Pill>
+      </div>
+      <p className="mt-1.5 text-muted">
+        {x.pastes} paste{x.pastes === 1 ? "" : "s"} from outside the editor · left the tab {x.leaves} time{x.leaves === 1 ? "" : "s"}
+        {x.leaves ? ` (${dur(away)} away)` : ""}.{" "}
+        {level === "not detected"
+          ? "That's the clean report you want."
+          : "On Coderbyte the reviewer sees this. Next time type everything in the editor and stay in the tab."}
+      </p>
+    </div>
   );
 }

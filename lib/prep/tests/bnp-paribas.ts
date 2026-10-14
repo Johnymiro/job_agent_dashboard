@@ -1,4 +1,5 @@
 import type { CodingTask, PrepSection, PrepTest, Question } from "../types";
+import { CODERBYTE_ROUNDS, CODERBYTE_SOURCES, CODERBYTE_TASKS, CODERBYTE_TIPS } from "./bnp-coderbyte";
 
 /* BNP Paribas — full-stack & AI engineering test for a bank AI-platform role.
    Topics: Python pipelines, React + TypeScript, LLMs & RAG, agents, Apigee/API design, data orchestration. */
@@ -1530,14 +1531,15 @@ export const bnpParibas: PrepTest = {
   role: "AI-platform role",
   title: "Full-stack & AI engineering test",
   summary:
-    "For a bank AI-platform role: Python pipelines, React and TypeScript, LLMs and RAG, agents, Apigee and API design, and data orchestration. The coding tasks run real tests in your browser.",
+    "For a bank AI-platform role: Python pipelines, React and TypeScript, LLMs and RAG, agents, Apigee and API design, and data orchestration. The two real tests (Python and React) run on Coderbyte, about 2 hours each, so there's a Coderbyte-style round for each. The coding tasks run real tests in your browser.",
   disclaimer:
-    "Unofficial practice material, not affiliated with or endorsed by BNP Paribas. Content reflects public documentation as of October 2026.",
+    "Unofficial practice material, not affiliated with or endorsed by BNP Paribas or Coderbyte. Content reflects public documentation as of October 2026.",
   target: 70,
   taskPoints: 5,
   mock: { minutes: 60, perSection: 4, tasks: ["python", "js"] },
   sprint: { minutes: 20, count: 20 },
+  coderbyte: { rounds: CODERBYTE_ROUNDS, points: 10, tips: CODERBYTE_TIPS, sources: CODERBYTE_SOURCES },
   sections: SECTIONS,
   questions: QUESTIONS,
-  tasks: TASKS,
+  tasks: [...TASKS, ...CODERBYTE_TASKS],
 };
