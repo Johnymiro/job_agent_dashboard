@@ -402,6 +402,44 @@ export function loadReact() {
 
 export const reactReady = () => typeof window !== "undefined" && !!window.Babel?.transform;
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- Babel's plugin API is untyped here */
+const LOOP_MS = 1000;
+export const LOOP_STOPPED = "so it was stopped. Is it infinite?";
+/** Babel plugin: a loop that runs for over 1 s without awaiting throws, so a half-typed
+ *  `for (;;)` in the live preview (or the tests) can't freeze the tab. */
+function loopGuard({ types: t, template }: any) {
+  const check = template.statement(
+    `if (Date.now() - START > ${LOOP_MS}) throw new RangeError("The loop on line " + LINE + " ran for over ${LOOP_MS / 1000} s, ${LOOP_STOPPED}");`,
+  );
+  const done = new WeakSet();
+  const awaits = (path: any) => {
+    let found = false;
+    path.traverse({
+      Function: (p: any) => p.skip(),
+      "AwaitExpression|YieldExpression": (p: any) => {
+        found = true;
+        p.stop();
+      },
+    });
+    return found;
+  };
+  return {
+    visitor: {
+      "WhileStatement|DoWhileStatement|ForStatement|ForInStatement|ForOfStatement"(path: any) {
+        if (done.has(path.node) || path.node.await || awaits(path)) return;
+        done.add(path.node);
+        const start = path.scope.generateUidIdentifier("loopStart");
+        const guard = check({ START: t.cloneNode(start), LINE: t.numericLiteral(path.node.loc?.start.line ?? 0) });
+        const body = path.get("body");
+        if (body.isBlockStatement()) body.unshiftContainer("body", guard);
+        else body.replaceWith(t.blockStatement([guard, body.node]));
+        path.insertBefore(t.variableDeclaration("var", [t.variableDeclarator(start, template.expression.ast`Date.now()`)]));
+      },
+    },
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 /** JSX/TSX + ES modules → a CommonJS script the frame can run with its own require(). */
 export function compileReact(code: string) {
   return window.Babel!.transform(code, {
@@ -412,7 +450,7 @@ export function compileReact(code: string) {
       ["typescript", { isTSX: true, allExtensions: true }],
       ["react", { runtime: "classic" }],
     ],
-    plugins: ["transform-modules-commonjs"],
+    plugins: [loopGuard, "transform-modules-commonjs"],
   }).code;
 }
 
@@ -629,6 +667,7 @@ function reactFrame() {
     src: string;
     setup: string;
     helpers: string;
+    loopStopped: string;
     tests: { name: string; expr: string; expected: unknown }[];
   }
   const reply = (data: unknown) => parent.postMessage({ __prep: "react", ...(data as object) }, "*");
@@ -658,14 +697,20 @@ function reactFrame() {
         pre.textContent = errText(err);
         document.body.appendChild(pre);
       }
+      reply({ kind: "rendered" });
       return;
     }
     const { hasComment, usesName } = new Function("__SRC", m.helpers + "return {hasComment,usesName};")(m.src);
     const H = { $, $$, text, texts, value, click, type, choose, submit, settle, waitFor, hasComment, usesName, source: m.src };
     const names = Object.keys(H);
     const results: Record<string, unknown>[] = [];
+    let stopped = ""; // a runaway loop: React retries the render, so don't make every test wait for it
     for (const t of m.tests) {
       const r: Record<string, unknown> = { name: t.name, expr: t.expr, expected: canon(t.expected) };
+      if (stopped) {
+        results.push({ ...r, passed: false, error: stopped });
+        continue;
+      }
       try {
         await mount(m.compiled, m.setup);
         const fn = new Function(...names, "return (async () => (" + t.expr + "))();");
@@ -679,6 +724,7 @@ function reactFrame() {
       } catch (err) {
         r.passed = false;
         r.error = errText(err);
+        if (String(r.error).includes(m.loopStopped)) stopped = String(r.error);
       }
       results.push(r);
     }
@@ -704,8 +750,9 @@ export function createReactFrame(visible: HTMLElement | null): Promise<HTMLIFram
     f.setAttribute("sandbox", "allow-scripts allow-forms");
     f.title = "React app";
     if (visible) {
-      f.className = "block h-full w-full bg-white";
-      visible.replaceChildren(f);
+      // stacked over the current render and shown once it has rendered (previewReact)
+      f.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff;opacity:0;pointer-events:none";
+      visible.appendChild(f);
     } else {
       // offscreen but not display:none, which would throttle its timers
       f.style.cssText = "position:fixed;left:0;top:0;width:480px;height:360px;opacity:0;pointer-events:none;border:0;z-index:-1";
@@ -736,6 +783,7 @@ async function frameMessage(task: CodingTask, code: string, kind: "run" | "previ
     src: code,
     setup: task.setup || "",
     helpers: SOURCE_HELPERS,
+    loopStopped: LOOP_STOPPED,
     tests: task.tests.map((t) => ({ name: t.name, expr: t.expr, expected: t.expected })),
   };
 }
@@ -792,7 +840,8 @@ async function runReact(task: CodingTask, code: string): Promise<RunResult> {
   });
 }
 
-/** Renders the app into a visible frame inside `box` (no tests); the error text if it can't compile. */
+/** Renders the app into a visible frame inside `box` (no tests); the error text if it can't compile.
+ *  The previous render stays up until the new one is ready, and also when the code doesn't compile. */
 export async function previewReact(box: HTMLElement, task: CodingTask, code: string): Promise<string | null> {
   try {
     await loadReact();
@@ -805,12 +854,34 @@ export async function previewReact(box: HTMLElement, task: CodingTask, code: str
   } catch (e) {
     return babelError(e);
   }
+  const gen = String(Number(box.dataset.gen || 0) + 1);
+  box.dataset.gen = gen;
+  let frame: HTMLIFrameElement;
   try {
-    const frame = await createReactFrame(box);
-    frame.contentWindow!.postMessage(msg, "*");
+    frame = await createReactFrame(box);
   } catch (e) {
     return (e as Error).message;
   }
+  await new Promise<void>((resolve) => {
+    const done = () => {
+      window.removeEventListener("message", onMsg);
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(done, 4000); // show whatever it has by then
+    const onMsg = (e: MessageEvent) => {
+      if (e.source === frame.contentWindow && e.data?.__prep === "react" && e.data.kind === "rendered") done();
+    };
+    window.addEventListener("message", onMsg);
+    frame.contentWindow!.postMessage(msg, "*");
+  });
+  if (box.dataset.gen !== gen) {
+    frame.remove(); // a newer render started meanwhile
+    return null;
+  }
+  for (const old of Array.from(box.children)) if (old !== frame) old.remove();
+  frame.style.opacity = "1";
+  frame.style.pointerEvents = "auto";
   return null;
 }
 

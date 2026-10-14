@@ -110,7 +110,7 @@ export function Simulator({
     if (!r) return;
     setDialog({
       title: `Begin the ${r.name}?`,
-      body: `The ${r.minutes % 60 === 0 ? `${r.minutes / 60}-hour` : `${r.minutes}-minute`} clock starts now and can't be paused, as on Coderbyte. Every question is visible from the start. Pasting from outside the editor and leaving this tab are counted, like Coderbyte's integrity report. Sample tests show while you work; hidden ones grade you at the end.`,
+      body: `The ${r.minutes % 60 === 0 ? `${r.minutes / 60}-hour` : `${r.minutes}-minute`} clock starts now and can't be paused, as on Coderbyte. Every question is visible from the start. Pasting from outside the editor and leaving this tab are counted, like Coderbyte's integrity report. Sample tests cover each rule in a prompt while you work; hidden ones check edge cases and grade you at the end.`,
       cancelLabel: "Not yet",
       confirm: { label: "Begin assessment", onConfirm: () => start("coderbyte", { round: r.id }) },
     });

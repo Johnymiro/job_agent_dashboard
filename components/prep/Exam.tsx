@@ -18,6 +18,7 @@ import {
   taskPointsFor,
 } from "@/lib/prep/engine";
 import { loadPython, loadReact, previewReact, pythonReady, reactReady, runTask } from "@/lib/prep/runners";
+import type { EditorHandle } from "@/lib/prep/editor";
 import type { CodingTask, TaskLang } from "@/lib/prep/types";
 import type { DialogSpec } from "./Dialog";
 import { CodeBlock, ErrorBox, LETTERS, LangChip, LogBox, Options, Paras, Reveal, TestList, Verdict, mmss, pad } from "./parts";
@@ -223,7 +224,7 @@ export function Exam({
     const onKey = (e: KeyboardEvent) => {
       if (dialogOpen || e.ctrlKey || e.metaKey || e.altKey) return;
       const tag = ((e.target as HTMLElement | null)?.tagName || "").toLowerCase();
-      if (tag === "textarea" || tag === "input" || tag === "select") return;
+      if (tag === "textarea" || tag === "input" || tag === "select" || (e.target as HTMLElement | null)?.isContentEditable) return;
       const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       const move = k === "ArrowRight" || k === "n" ? 1 : k === "ArrowLeft" || k === "p" ? -1 : 0;
       if (move) {
@@ -351,7 +352,7 @@ export function Exam({
             {fb
               ? "Run as often as you like."
               : hiddenN
-                ? `Run checks the ${t.tests.length - hiddenN} sample tests. When you submit, ${hiddenN} hidden tests grade your final code too.`
+                ? `Run checks the ${t.tests.length - hiddenN} sample tests, one or more for each rule in the prompt. When you submit, ${hiddenN} hidden edge-case tests grade your final code too.`
                 : "Run as often as you like. When you submit, your final code is tested and scored."}
           </span>
         </div>
@@ -377,7 +378,7 @@ export function Exam({
           <span className="font-mono font-medium tabular-nums text-fg">
             {passed}/{of} {hiddenN ? "sample tests" : "tests"}
           </span>
-          {hiddenN > 0 && <span className="text-xs text-subtle">+ {hiddenN} hidden, graded when you submit</span>}
+          {hiddenN > 0 && <span className="text-xs text-subtle">+ {hiddenN} hidden edge cases, graded when you submit</span>}
           {run.code !== s.code[i] && <span className="text-xs text-subtle">Code changed since this run</span>}
         </div>
         {run.error && <ErrorBox>{run.error}</ErrorBox>}
@@ -437,10 +438,11 @@ export function Exam({
         )}
         <p className="mt-2 text-xs text-subtle">
           {t.lang === "python"
-            ? "Python runs in this tab on Brython. An infinite loop will freeze the tab. Tab indents; Esc leaves the editor."
+            ? "Python runs in this tab on Brython. An infinite loop will freeze the tab."
             : t.lang === "react"
-              ? "Babel compiles it and React 18 runs it in a sandboxed frame; each test starts from a fresh render. Tab indents; Esc leaves the editor."
-              : "Runs as plain JavaScript in a sandboxed worker, so remove TypeScript annotations. Tab indents; Esc leaves the editor."}
+              ? "Babel compiles it and React 18 runs it in a sandboxed frame; each test starts from a fresh render."
+              : "Runs as plain JavaScript in a sandboxed worker, so remove TypeScript annotations."}
+          {" Tab indents and Shift+Tab outdents, Ctrl/⌘+F finds, Ctrl+Space suggests names; press Esc then Tab to leave the editor."}
           {t.stdin && ` Your program's ${t.lang === "python" ? "input()" : "readline()"} gets the first example; its output shows under the tests.`}
         </p>
         {t.lang === "react" && <ReactPreview key={cur} task={t} code={s.code[cur] ?? ""} rev={previewRev} />}
@@ -615,21 +617,78 @@ export function Exam({
 let editorClipboard = "";
 const norm = (x: string) => x.replace(/\s+/g, " ").trim();
 
-/** Plain textarea with a line-number gutter, Tab indent and auto-indent on Enter.
- *  `onPaste(outside)` reports pastes; outside = not what was last copied in an editor. */
-function CodeEditor({
-  value,
-  lang,
-  onChange,
-  onRun,
-  onPaste,
-}: {
+type EditorProps = {
   value: string;
   lang: TaskLang;
   onChange: (v: string) => void;
   onRun: () => void;
   onPaste?: (outside: boolean) => void;
-}) {
+};
+
+// what was pasted, compared with what was last copied in an editor
+const pastedOutside = (text: string) => {
+  const t = norm(text);
+  return t ? t !== norm(editorClipboard) : null;
+};
+
+/** CodeMirror (loaded on demand): highlighting, smart indent, bracket matching, undo, Ctrl/⌘+F.
+ *  Falls back to a plain textarea if it can't load. `onPaste(outside)` reports pastes. */
+function CodeEditor(props: EditorProps) {
+  const { value, lang } = props;
+  const host = useRef<HTMLDivElement>(null);
+  const ed = useRef<EditorHandle | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
+  const latest = useRef({ props, value });
+  latest.current = { props, value };
+
+  useEffect(() => {
+    let dead = false;
+    import("@/lib/prep/editor").then(
+      ({ createCodeEditor }) => {
+        if (dead || !host.current) return;
+        ed.current = createCodeEditor(host.current, {
+          value: latest.current.value,
+          lang,
+          onChange: (v) => latest.current.props.onChange(v),
+          onRun: () => latest.current.props.onRun(),
+          onCopy: (text) => (editorClipboard = text),
+          onPaste: (text) => {
+            const outside = pastedOutside(text);
+            if (outside !== null) latest.current.props.onPaste?.(outside);
+          },
+        });
+        setState("ready");
+      },
+      () => !dead && setState("failed"),
+    );
+    return () => {
+      dead = true;
+      ed.current?.destroy();
+      ed.current = null;
+    };
+  }, [lang]);
+
+  // Reset and other outside changes
+  useEffect(() => ed.current?.setValue(value), [value]);
+
+  if (state === "failed") return <PlainEditor {...props} />;
+  return (
+    <div className="relative h-[380px] max-h-[85vh] min-h-[220px] resize-y overflow-hidden">
+      <div ref={host} className="h-full" />
+      {state === "loading" && (
+        <pre
+          aria-hidden="true"
+          className="absolute inset-0 overflow-hidden whitespace-pre py-3.5 pl-[58px] pr-4 font-mono text-[13px] leading-[1.6] text-fg-2"
+        >
+          {value}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+/** Fallback editor: textarea with a line-number gutter, Tab indent and auto-indent on Enter. */
+function PlainEditor({ value, lang, onChange, onRun, onPaste }: EditorProps) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const gutter = useRef<HTMLPreElement>(null);
   const unit = lang === "python" ? "    " : "  ";
@@ -658,9 +717,20 @@ function CodeEditor({
       onRun();
     } else if (e.key === "Escape") {
       el.blur();
-    } else if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+    } else if (e.key === "Tab" && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
-      insert(unit);
+      const { selectionStart: a, selectionEnd: b } = el;
+      if (!e.shiftKey && !el.value.slice(a, b).includes("\n")) return insert(unit);
+      // several lines selected, or Shift+Tab: indent or outdent whole lines
+      const from = el.value.lastIndexOf("\n", a - 1) + 1;
+      const block = el.value.slice(from, b);
+      const out = block
+        .split("\n")
+        .map((ln) => (e.shiftKey ? ln.replace(new RegExp(`^( {1,${unit.length}}|\t)`), "") : unit + ln))
+        .join("\n");
+      el.setSelectionRange(from, b);
+      insert(out);
+      el.setSelectionRange(from, from + out.length);
     } else if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !e.nativeEvent.isComposing) {
       const start = el.selectionStart;
       const line = el.value.slice(el.value.lastIndexOf("\n", start - 1) + 1, start);
@@ -687,8 +757,8 @@ function CodeEditor({
         onCopy={(e) => (editorClipboard = e.currentTarget.value.slice(e.currentTarget.selectionStart, e.currentTarget.selectionEnd))}
         onCut={(e) => (editorClipboard = e.currentTarget.value.slice(e.currentTarget.selectionStart, e.currentTarget.selectionEnd))}
         onPaste={(e) => {
-          const text = norm(e.clipboardData.getData("text/plain"));
-          if (text) onPaste?.(text !== norm(editorClipboard));
+          const outside = pastedOutside(e.clipboardData.getData("text/plain"));
+          if (outside !== null) onPaste?.(outside);
         }}
         onScroll={() => {
           if (gutter.current && ta.current) gutter.current.scrollTop = ta.current.scrollTop;
@@ -705,35 +775,69 @@ function CodeEditor({
   );
 }
 
-/** Live render of a React task's code (no tests), refreshed after each run. */
+/** Live render of a React task's code (no tests). It follows the editor once typing pauses,
+ *  and starts fresh after each run or with the button; code that doesn't compile keeps the last render. */
 function ReactPreview({ task, code, rev }: { task: CodingTask; code: string; rev: number }) {
   const box = useRef<HTMLDivElement>(null);
   const codeRef = useRef(code);
   codeRef.current = code;
+  const [paused, setPaused] = useState(code); // the code once typing pauses
   const [own, setOwn] = useState(0);
-  const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: true, error: null });
+  const [state, setState] = useState<{ busy: boolean; error: string | null; shown: string | null }>({
+    busy: true,
+    error: null,
+    shown: null,
+  });
+
+  useEffect(() => {
+    const t = setTimeout(() => setPaused(code), 600);
+    return () => clearTimeout(t);
+  }, [code]);
 
   useEffect(() => {
     let live = true;
-    setState({ busy: true, error: null });
-    previewReact(box.current!, task, codeRef.current).then((error) => live && setState({ busy: false, error }));
+    const src = codeRef.current;
+    setState((x) => ({ ...x, busy: true }));
+    previewReact(box.current!, task, src).then(
+      (error) => live && setState((x) => ({ busy: false, error, shown: error ? x.shown : src })),
+    );
     return () => {
       live = false;
     };
-  }, [task, rev, own]);
+  }, [task, paused, rev, own]);
 
+  const status = state.busy
+    ? reactReady()
+      ? "updating…"
+      : "loading React…"
+    : state.error
+      ? state.shown === null
+        ? "not rendered"
+        : "showing the last version that compiled"
+      : state.shown === code
+        ? "live, follows your code"
+        : "updates when you pause typing";
   return (
     <div className="mt-4 border border-line">
       <div className="flex items-center justify-between gap-2 border-b border-line bg-surface py-1.5 pl-3 pr-1.5">
         <span className="font-mono text-xs text-muted">
-          Preview{state.busy && <span className="text-subtle"> · {reactReady() ? "rendering…" : "loading React…"}</span>}
+          Preview <span className="text-subtle">· {status}</span>
         </span>
-        <Button size="sm" variant="subtle" onClick={() => setOwn((n) => n + 1)}>
-          Refresh
+        <Button size="sm" variant="subtle" title="Render the current code again from a fresh start" onClick={() => setOwn((n) => n + 1)}>
+          Restart
         </Button>
       </div>
-      {state.error && <ErrorBox>{state.error}</ErrorBox>}
-      <div ref={box} className="h-[280px] min-h-[160px] resize-y overflow-hidden bg-white" />
+      <div className="relative h-[300px] min-h-[160px] resize-y overflow-hidden bg-white">
+        <div ref={box} className="absolute inset-0" />
+        {state.error && (
+          <pre
+            role="status"
+            className="absolute inset-x-0 bottom-0 max-h-[60%] overflow-auto whitespace-pre-wrap border-t-2 border-bad bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-bad"
+          >
+            {state.error}
+          </pre>
+        )}
+      </div>
     </div>
   );
 }
