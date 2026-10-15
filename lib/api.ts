@@ -483,6 +483,40 @@ export const runSearch = (id: number) =>
 export const getRuns = () =>
   api.get<{ running: boolean; items: RunRow[] }>("/api/runs").then((r) => r.data);
 export const getRun = (id: number) => api.get<RunRow>(`/api/runs/${id}`).then((r) => r.data);
+
+/** One thing a run's step did: a search it ran, a posting it found / scored / found
+ *  an email for, an email it wrote. `score` and `outcome` are as they were then. */
+export interface RunItemRow {
+  step: string;
+  outcome: string;
+  note: string | null;
+  score: number | null;
+  at: string | null;
+  opportunity: {
+    id: number;
+    kind: Kind;
+    source: string;
+    title: string;
+    company: string | null;
+    location: string | null;
+    region: string | null;
+    score: number | null;
+    status: string;
+    company_type: string | null;
+  } | null;
+  email: { id: number; kind: string; to: string; subject: string; status: string } | null;
+  search: { id: number; kind: Kind; source: string; query: string; location: string | null } | null;
+}
+
+export interface RunDetail {
+  run: RunRow;
+  /** a run from before items were recorded, rebuilt from timestamps */
+  rebuilt: boolean;
+  items: RunItemRow[];
+}
+
+export const getRunItems = (id: number) =>
+  api.get<RunDetail>(`/api/runs/${id}/items`).then((r) => r.data);
 export const startRun = (kind: string) =>
   api.post<RunRow>("/api/runs", null, { params: { kind } }).then((r) => r.data);
 
