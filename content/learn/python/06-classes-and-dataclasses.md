@@ -23,6 +23,10 @@ a.owner                              # 'Ana'
 a.currency                           # 'EUR' (found on the class)
 ```
 
+```viz
+py-attr-lookup
+```
+
 > **Pitfall:** A mutable class attribute is shared state. `class Cart: items = []` means every cart appends to the same list. Create mutable attributes in `__init__`.
 
 ## Dunder methods make objects feel built-in

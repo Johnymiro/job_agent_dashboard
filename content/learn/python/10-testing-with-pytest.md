@@ -98,6 +98,10 @@ def test_price_uses_rate():
 
 Patching `"rates.fetch_rate"` would change the `rates` module, but `pricing` already holds its own reference to the original function. (If `pricing` did `import rates` and called `rates.fetch_rate(...)`, then patching `"rates.fetch_rate"` would work, because the attribute is looked up on each call.)
 
+```viz
+py-patch-where
+```
+
 Mock behaviour you'll use:
 
 ```python

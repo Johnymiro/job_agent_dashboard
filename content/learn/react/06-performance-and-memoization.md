@@ -50,6 +50,10 @@ const Row = memo(function Row({ trade, onSelect }) { /* ... */ });
 
 It's defeated by props that are new on every render: inline objects (`style={{...}}`), inline arrays, and inline functions (`onSelect={() => ...}`).
 
+```viz
+re-memo-tree
+```
+
 ## `useMemo` and `useCallback`
 
 - `useMemo(() => compute(a, b), [a, b])` caches a **value** until `a` or `b` changes.

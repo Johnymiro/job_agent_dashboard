@@ -4,6 +4,7 @@
    ## Heading / ### Sub      h2s also build the "On this page" list
    paragraphs                inline `code`, **bold**, [link](https://…)
    ```python … ```           fenced code (``` or ~~~), any language label
+   ```viz                    an animated diagram: the fence holds its id (lib/learn/viz-ids.ts)
    - item / 1. item          lists (indent continuation lines by 2 spaces)
    > **Tip:** …              callouts: Tip, Pitfall, In the test, Note (plain > is a note too)
    | a | b |                 tables (escape a literal pipe as \|)
@@ -17,6 +18,7 @@
 */
 import type { Question, SnippetLang } from "@/lib/prep/types";
 import type { Block, NoteTone } from "./types";
+import type { VizId } from "./viz-ids";
 
 export const slugify = (s: string) =>
   s
@@ -70,7 +72,7 @@ export function parseBlocks(src: string): Block[] {
       i++;
       while (i < lines.length && !lines[i].startsWith(fence[1])) body.push(lines[i++]);
       i++; // closing fence
-      out.push({ t: "code", lang: fence[2] || "text", src: body.join("\n") });
+      out.push(fence[2] === "viz" ? { t: "viz", id: body.join("\n").trim() as VizId } : { t: "code", lang: fence[2] || "text", src: body.join("\n") });
       continue;
     }
 

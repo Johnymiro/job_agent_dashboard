@@ -99,6 +99,10 @@ async def good():
     await asyncio.to_thread(parse, blob)   # run blocking work in a thread
 ```
 
+```viz
+py-event-loop
+```
+
 > **Pitfall:** Calling a coroutine function without `await` does nothing except create a coroutine object, and Python warns "coroutine ... was never awaited". It's an easy bug when refactoring sync code to async.
 
 > **Tip:** `gather` with the default `return_exceptions=False` raises the first error, but the other awaitables keep running. Use a `TaskGroup` when one failure should cancel the rest.

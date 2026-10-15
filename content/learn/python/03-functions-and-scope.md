@@ -85,6 +85,10 @@ def bump():
 bump()              # UnboundLocalError
 ```
 
+```viz
+py-legb
+```
+
 Fix it by passing the value in and returning the new one, or declare intent explicitly:
 
 ```python

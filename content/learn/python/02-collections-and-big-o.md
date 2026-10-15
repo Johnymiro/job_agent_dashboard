@@ -28,6 +28,10 @@ Dicts keep insertion order (guaranteed since Python 3.7). Sets have no order at 
 | delete by value | O(n) | O(1) average |
 | sort | O(n log n) | n/a |
 
+```viz
+py-lookup-cost
+```
+
 The classic slow pattern is a membership test against a list inside a loop, which makes the whole thing O(n × m):
 
 ```python

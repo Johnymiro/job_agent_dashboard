@@ -34,6 +34,10 @@ React uses keys to match items between renders. With the right key, an item keep
 
 > **Pitfall:** With index keys, inserting a row at the top shifts every index, so React thinks each row changed, and text typed into row 1 moves to the new row.
 
+```viz
+re-keys
+```
+
 ## Using `key` to reset a component
 
 Changing a component's key makes React throw away the old instance and mount a fresh one, with fresh state. That's the clean way to reset a form when the selected record changes:

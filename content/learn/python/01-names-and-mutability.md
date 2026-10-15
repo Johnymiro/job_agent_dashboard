@@ -17,6 +17,10 @@ b.append(4)
 print(a)       # [1, 2, 3, 4]
 ```
 
+```viz
+py-aliasing
+```
+
 Every object has an identity (`id(x)`), a type and a value. `is` compares identity ("the same object?"); `==` compares value ("equal contents?").
 
 ```python
@@ -91,6 +95,10 @@ def add(item, bucket=None):  # the standard fix
     return bucket
 ```
 
+```viz
+py-default-arg
+```
+
 > **In the test:** "What does this print?" questions love this one. If you see `=[]`, `={}` or `=set()` in a signature, expect shared state.
 
 ## Shallow and deep copies
@@ -107,6 +115,10 @@ deep = copy.deepcopy(grid)
 grid[0][0] = 9
 print(shallow[0][0])         # 9  (inner lists are shared)
 print(deep[0][0])            # 0
+```
+
+```viz
+py-shallow-deep
 ```
 
 The same trap hides in list multiplication, which repeats references to one inner object:

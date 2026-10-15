@@ -1,4 +1,5 @@
 import type { Question } from "@/lib/prep/types";
+import type { VizId } from "./viz-ids";
 
 /** A parsed piece of a lesson body (see lib/learn/markdown.ts for the syntax). */
 export type Block =
@@ -9,7 +10,8 @@ export type Block =
   | { t: "list"; ordered: boolean; items: string[] }
   | { t: "task"; items: { done: boolean; text: string }[] }
   | { t: "note"; tone: NoteTone; label: string | null; text: string }
-  | { t: "table"; head: string[]; rows: string[][] };
+  | { t: "table"; head: string[]; rows: string[][] }
+  | { t: "viz"; id: VizId };
 
 /** > **Tip:** / **Pitfall:** / **In the test:** / plain quote */
 export type NoteTone = "tip" | "pitfall" | "test" | "note";

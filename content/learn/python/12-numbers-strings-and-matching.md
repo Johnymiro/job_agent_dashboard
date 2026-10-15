@@ -18,6 +18,10 @@ import math
 math.isclose(0.1 + 0.2, 0.3)   # True: compare floats with a tolerance
 ```
 
+```viz
+py-float-line
+```
+
 For money, use `Decimal` built **from strings**, or store integer minor units (cents).
 
 ```python

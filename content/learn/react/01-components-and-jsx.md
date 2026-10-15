@@ -67,6 +67,10 @@ function Card({ title, children }) {
 
 React favours composition (passing components and children) over inheritance between components.
 
+```viz
+re-render-tree
+```
+
 ## Conditional rendering
 
 ```jsx

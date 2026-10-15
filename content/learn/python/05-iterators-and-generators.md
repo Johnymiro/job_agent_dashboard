@@ -49,6 +49,10 @@ for isin, qty in pipeline:            # nothing is read until here
     ...
 ```
 
+```viz
+py-generator
+```
+
 Each stage pulls one row from the stage before it, so memory stays flat even for a 20 GB file.
 
 `yield from other` hands over to another iterable, which is handy for flattening or delegating:

@@ -22,6 +22,10 @@ finally:
     close_session()                    # always runs: success, failure or return
 ```
 
+```viz
+py-try-flow
+```
+
 - `else` keeps the "success only" code out of the `try`, so you don't accidentally catch errors from `save()`.
 - `finally` runs even when the `try` block `return`s. Never `return` from inside `finally`: it silently swallows the exception (newer Pythons warn about it).
 

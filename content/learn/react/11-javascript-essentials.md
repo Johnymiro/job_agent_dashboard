@@ -86,6 +86,10 @@ console.log("D");
 // A D C B
 ```
 
+```viz
+re-js-event-loop
+```
+
 Long synchronous work blocks everything, including rendering and input. Split it up, or move it to a Web Worker.
 
 ## Closures (again)

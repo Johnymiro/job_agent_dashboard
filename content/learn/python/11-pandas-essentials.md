@@ -68,6 +68,10 @@ df["desk_total"] = df.groupby("desk")["notional"].transform("sum")
 df["share"] = df["notional"] / df["desk_total"]
 ```
 
+```viz
+py-groupby
+```
+
 Use `agg` (or `.sum()`, `.mean()`) to **summarise** groups. Use `transform` to **attach** a group statistic to every row, for example a share of total or a z-score within each group.
 
 ## merge without surprises

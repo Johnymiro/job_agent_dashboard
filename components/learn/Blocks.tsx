@@ -1,6 +1,7 @@
 import { Icon } from "@/components/icons";
 import { CodeBlock, Inline, Paras } from "@/components/prep/parts";
 import type { Block, NoteTone } from "@/lib/learn/types";
+import { VIZ } from "./viz";
 
 const NOTE: Record<NoteTone, { box: string; label: string }> = {
   tip: { box: "border-good/50 bg-good/5", label: "text-good" },
@@ -81,6 +82,10 @@ function BlockView({ b }: { b: Block }) {
           <Paras text={b.text} className={`text-[0.94em] leading-[1.6] text-fg-2 ${b.label ? "mt-1" : ""}`} />
         </aside>
       );
+    case "viz": {
+      const Diagram = VIZ[b.id];
+      return <Diagram />;
+    }
     case "table":
       return (
         <div className="mt-5 overflow-x-auto border border-line">

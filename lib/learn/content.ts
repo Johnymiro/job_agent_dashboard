@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseBlocks, parseFrontmatter, readingMinutes, splitChecks } from "./markdown";
 import type { Lesson, LessonMeta, Level } from "./types";
+import { isVizId } from "./viz-ids";
 
 const ROOT = path.join(process.cwd(), "content", "learn");
 const LEVELS: Level[] = ["core", "intermediate", "advanced"];
@@ -25,6 +26,7 @@ export function loadLessons(subject: string): Lesson[] {
     for (const key of ["title", "summary", "level"]) if (!meta[key]) throw new Error(`${where}: front matter needs "${key}"`);
     if (!LEVELS.includes(meta.level as Level)) throw new Error(`${where}: level must be one of ${LEVELS.join(", ")}`);
     const { body: blocks, checks } = splitChecks(parseBlocks(body), id, where);
+    for (const b of blocks) if (b.t === "viz" && !isVizId(b.id)) throw new Error(`${where}: unknown diagram "${b.id}" (see lib/learn/viz-ids.ts)`);
     return {
       id,
       n: k + 1,

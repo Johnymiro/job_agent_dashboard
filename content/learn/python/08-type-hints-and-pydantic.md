@@ -96,6 +96,10 @@ except ValidationError as err:
     print(err.errors())     # one entry per problem: location, message, input
 ```
 
+```viz
+py-validate-edge
+```
+
 Use `strict=True` (on a field or in `model_config`) when you don't want any coercion. `parse_obj` and `.dict()` are the old v1 names; in v2 they're `model_validate` and `model_dump`.
 
 > **In the test:** For LLM output, validate the model's JSON with a Pydantic model (or a JSON Schema) before acting on it, and send the validation errors back to the model when you retry.

@@ -37,6 +37,10 @@ setCount((c) => c + 1);
 setCount((c) => c + 1);   // count ends up +2
 ```
 
+```viz
+re-snapshot
+```
+
 ## Batching
 
 React 18+ batches all state updates made in the same event, timeout or promise callback into **one** re-render. Three setters in a row means one render, not three.
@@ -57,6 +61,10 @@ setItems(items.map((i) => (i.id === id ? { ...i, qty } : i)));  // update one
 setItems(items.toSorted((a, b) => a.price - b.price));          // sort a copy
 setOrder({ ...order, side: "SELL" });                           // object field
 setForm((f) => ({ ...f, address: { ...f.address, city } }));    // nested: copy each level
+```
+
+```viz
+re-immutable
 ```
 
 | Avoid (mutates) | Use instead |

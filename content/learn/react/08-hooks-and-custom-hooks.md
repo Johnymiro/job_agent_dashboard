@@ -29,6 +29,10 @@ Put conditions **inside** hooks instead: `useEffect(() => { if (!user) return; .
 
 > **Note:** The new `use()` API (React 19) is the one exception: it can be called conditionally, because it reads a promise or context rather than owning a slot.
 
+```viz
+re-hook-slots
+```
+
 ## Custom hooks: reuse logic, not state
 
 A custom hook is just a function whose name starts with `use` and that calls other hooks. Each component that calls it gets **its own independent state**; hooks share logic, never the state itself.

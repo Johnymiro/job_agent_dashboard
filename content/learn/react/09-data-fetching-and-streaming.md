@@ -67,6 +67,10 @@ async function streamAnswer(prompt, onToken, signal) {
 }
 ```
 
+```viz
+re-stream-chunks
+```
+
 In the component, append with an **updater function**, because many chunks arrive between renders:
 
 ```jsx

@@ -193,3 +193,77 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Lesson diagrams (components/learn/viz/kit.tsx). Arrows draw themselves in (pathLength=1),
+   then their heads fade in; nodes ease colour and opacity between steps. */
+@keyframes viz-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes viz-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes viz-rise {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes viz-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.viz-draw {
+  stroke-dasharray: 1;
+  animation: viz-draw 0.55s cubic-bezier(0.22, 0.8, 0.24, 1) both;
+}
+.viz-head {
+  animation: viz-in 0.25s 0.4s both;
+}
+.viz-fade {
+  animation: viz-in 0.4s both;
+}
+.viz-say {
+  animation: viz-rise 0.35s both;
+}
+.viz-fill {
+  animation: viz-fill linear both;
+}
+/* in a layer, so a node's own transition-* utilities still win */
+@layer components {
+  .viz-node {
+    transition:
+      background-color 0.45s,
+      border-color 0.45s,
+      color 0.45s,
+      opacity 0.45s;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .viz-draw,
+  .viz-head,
+  .viz-fade,
+  .viz-say {
+    animation: none;
+  }
+  .viz-node {
+    transition: none;
+  }
+}

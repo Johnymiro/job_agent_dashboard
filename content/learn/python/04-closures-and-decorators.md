@@ -39,6 +39,10 @@ from functools import partial
 callbacks.append(partial(str.upper, name))          # or bind with partial
 ```
 
+```viz
+py-late-binding
+```
+
 > **Tip:** To change an enclosing variable (not just read it), declare it `nonlocal` inside the inner function.
 
 ## A decorator is a function that wraps a function
@@ -109,6 +113,10 @@ Decorators apply bottom-up, so the one nearest the `def` wraps first. At call ti
 @retry(3)     # applied first
 def get_quote(isin): ...
 # get_quote = timed(retry(3)(get_quote)): the timing includes all retries
+```
+
+```viz
+py-decorator-stack
 ```
 
 ## Decorators you'll use from the standard library

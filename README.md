@@ -33,7 +33,7 @@ add the dashboard origin to the API's `CORS_ORIGINS`.
 | `/prep` | Technical-test prep packs and subjects to learn, with progress per test and subject |
 | `/prep/<slug>` | One test's simulator: Coderbyte-style rounds (when the test has them), timed mock exam, sprint, topic drills, coding lab (Python on Brython, JS in a worker, React 18 in a sandboxed frame, real tests), results with explanations. Progress is kept in this browser (`localStorage`, keys `prep.<slug>.*`) |
 | `/prep/learn/<subject>` | A subject (Python, React & TypeScript): lessons with progress, and a quick review of their checks (missed first) on the same simulator |
-| `/prep/learn/<subject>/<lesson>` | One lesson: explanations, examples, callouts, quick checks with instant feedback, "mark as learned", prev / next |
+| `/prep/learn/<subject>/<lesson>` | One lesson: explanations, examples, animated step-through diagrams, callouts, quick checks with instant feedback, "mark as learned", prev / next |
 
 ## Adding a test prep
 
@@ -74,3 +74,5 @@ Intro paragraph. Inline `code`, **bold**, [links](https://docs.python.org).
 ```
 
 Code fences (` ```python `, ` ```jsx ` …), lists and `| tables |` work as usual. To add a subject, add it to `SUBJECTS` in `lib/learn/subjects.ts` and create its folder.
+
+**Animated diagrams.** A ` ```viz ` fence holding a diagram id (` ```viz ` / `py-aliasing` / ` ``` `) places a step-through animation: the code with the running line marked, the picture, a caption per step, and play / step controls (it starts by itself when scrolled into view, and not at all with reduced motion). Diagrams are React components in `components/learn/viz/`, built on `kit.tsx`: a diagram only renders what the picture looks like at step `s`, and the kit animates the changes (nodes glide to their new place, arrows draw in and swing to new targets). To add one, write the component, add its id to `lib/learn/viz-ids.ts` and map it in `components/learn/viz/index.tsx`; an unknown id fails the build.

@@ -23,6 +23,10 @@ const ref = useRef(initialValue);   // { current: initialValue }
 | read it during render | yes | avoid (it may be stale) |
 | typical use | anything the UI shows | DOM nodes, timer ids, instances, latest values for callbacks |
 
+```viz
+re-ref-box
+```
+
 ## Pointing at DOM nodes
 
 ```jsx

@@ -68,6 +68,10 @@ function View({ state }: { state: Fetch<Trade[]> }) {
 
 Impossible states (an error **and** data) can't even be written.
 
+```viz
+re-narrowing
+```
+
 ## `unknown`, not `any`, for outside data
 
 `any` turns type checking off. `unknown` means "could be anything; prove what it is before using it". Use it for `JSON.parse`, API responses and LLM tool arguments, then validate with a schema:

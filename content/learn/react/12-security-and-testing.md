@@ -26,6 +26,10 @@ function SafeLink({ url, children }) {
 - **Direct DOM writes** through refs (`el.innerHTML = …`) bypass React's escaping entirely.
 - **Markdown renderers** that allow raw HTML.
 
+```viz
+re-xss
+```
+
 > **In the test:** Treat LLM output like user input. Prompt injection can make a model emit `<img src=x onerror=…>` or a malicious link. Render Markdown with raw HTML disabled, or sanitise first; regex "script stripping" misses event-handler attributes and `javascript:` URLs.
 
 ## Secrets and tokens

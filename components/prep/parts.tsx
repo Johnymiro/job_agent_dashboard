@@ -137,7 +137,7 @@ const RX = {
 
 const GRAMMAR: Record<string, keyof typeof RX> = { python: "python", py: "python", js: "js", jsx: "js", ts: "js", tsx: "js", sql: "sql" };
 
-function highlight(src: string, lang: string) {
+export function highlight(src: string, lang: string) {
   const key = GRAMMAR[lang];
   if (!key) return [src]; // bash, text, json…: plain
   const re = new RegExp(RX[key].source, "g");

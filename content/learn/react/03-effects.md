@@ -31,6 +31,10 @@ Every reactive value the effect reads (props, state, values computed from them) 
 
 With `<StrictMode>`, React mounts each component, immediately unmounts it, and mounts it again, in development only. Your effect runs setup, cleanup, setup. If you see two WebSocket connections or two subscriptions, the bug is a **missing cleanup**; in production the effect runs once, but the leak would show up when the component remounts.
 
+```viz
+re-effect-life
+```
+
 ## Stale closures
 
 An effect captures the values from the render it was created in. If it outlives that render, it keeps seeing old values.
@@ -66,6 +70,10 @@ useEffect(() => {
     });
   return () => ctrl.abort();             // the previous request dies when query changes
 }, [query]);
+```
+
+```viz
+re-race
 ```
 
 In real apps, a data library (TanStack Query, SWR, or your framework's loader) handles caching, races and retries for you.

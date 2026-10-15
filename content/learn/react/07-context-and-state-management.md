@@ -40,6 +40,10 @@ function useAuth() {
 
 Every component that reads a context re-renders when the provider's `value` changes (compared with `Object.is`). That's why the value is memoised above, and why frequently changing data, like a live price feed, is a poor fit for one big context. Split contexts by how often they change.
 
+```viz
+re-context
+```
+
 ## useReducer: complex updates in one place
 
 When several pieces of state change together, or the next state depends on the previous one in non-trivial ways, a reducer collects the update logic into one pure function:
