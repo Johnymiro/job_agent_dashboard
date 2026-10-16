@@ -605,3 +605,35 @@ export interface Analytics {
 
 export const getAnalytics = (days: number) =>
   api.get<Analytics | { configured: false }>("/api/analytics", { params: { days } }).then((r) => r.data);
+
+// ---- Portfolio enquiries (the contact form on jackmiro.pt) -------------------
+export type EnquiryStatus = "new" | "read" | "replied" | "spam";
+
+/** A message from the portfolio's contact form; an email or Telegram is always set. */
+export interface PortfolioEnquiry {
+  id: number;
+  name: string;
+  email: string | null;
+  telegram: string | null;
+  /** digits, international, without the + */
+  whatsapp: string | null;
+  /** "email" | "telegram" when they gave both */
+  preferred_contact: string | null;
+  company: string | null;
+  site: string | null;
+  /** labels as picked on the site, in `locale` */
+  service: string | null;
+  budget: string | null;
+  timeline: string | null;
+  message: string;
+  locale: string | null;
+  status: EnquiryStatus;
+  created_at: string;
+  /** the email whose portfolio link brought them, if one did */
+  application: LeadVisit["application"] | null;
+}
+
+export const getEnquiries = () =>
+  api.get<PortfolioEnquiry[]>("/api/portfolio/enquiries").then((r) => r.data);
+export const setEnquiryStatus = (id: number, status: EnquiryStatus) =>
+  api.patch(`/api/portfolio/enquiries/${id}`, { status }).then((r) => r.data);

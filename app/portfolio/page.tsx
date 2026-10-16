@@ -1,20 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Analytics, LeadVisit, errorMessage, getAnalytics, getApplication } from "@/lib/api";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Analytics,
+  EnquiryStatus,
+  LeadVisit,
+  PortfolioEnquiry,
+  errorMessage,
+  getAnalytics,
+  getApplication,
+  getEnquiries,
+  setEnquiryStatus,
+} from "@/lib/api";
 import { DrawerShell, OpportunityDrawer } from "@/components/OpportunityTable";
 import {
+  Button,
   Card,
   Empty,
   Msg,
   Notice,
   PageHeader,
   PanelTitle,
+  Pill,
   ReplyTag,
   Segmented,
   Spinner,
   StatCard,
+  Tabs,
   StatusBadge,
   fmtTime,
   timeAgo,
@@ -78,7 +91,7 @@ export default function PortfolioPage() {
       {isLoading && <Spinner label="Asking PostHog…" />}
       {isError && <Notice tone="bad">Couldn&apos;t load the analytics: {errorMessage(error)}</Notice>}
       {data && !data.configured && <SetupNotice />}
-      {data?.configured && <Report data={data} />}
+      {data?.configured ? <Report data={data} /> : !isLoading && <Enquiries index="01" />}
     </div>
   );
 }
@@ -130,6 +143,8 @@ function Report({ data }: { data: Analytics }) {
         <StatCard label="Enquiries" value={t?.enquiries ?? "—"} sub={`${opened} visits opened the form`} />
         <StatCard label="From your emails" value={t?.lead_visits ?? "—"} sub="visits via a link you sent" />
       </div>
+
+      <Enquiries index={idx()} />
 
       <Daily data={data} days={data.days} index={idx()} />
 
@@ -281,6 +296,185 @@ function Pages({ data, index }: { data: Analytics; index: string }) {
         </div>
       )}
     </Card>
+  );
+}
+
+const ENQUIRY_TABS = [
+  { value: "inbox", label: "Inbox" },
+  { value: "replied", label: "Replied" },
+  { value: "spam", label: "Spam" },
+] as const;
+type EnquiryTab = (typeof ENQUIRY_TABS)[number]["value"];
+const inTab = (e: PortfolioEnquiry, tab: EnquiryTab) =>
+  tab === "inbox" ? e.status === "new" || e.status === "read" : e.status === tab;
+
+/** Messages from the portfolio's contact form (a copy the portfolio posts to the server). */
+function Enquiries({ index }: { index: string }) {
+  const [tab, setTab] = useState<EnquiryTab>("inbox");
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["enquiries"],
+    queryFn: getEnquiries,
+    refetchInterval: 60_000,
+  });
+  const all = data ?? [];
+  const rows = all.filter((e) => inTab(e, tab));
+  const fresh = all.filter((e) => e.status === "new").length;
+
+  return (
+    <Card>
+      <div className="space-y-3 px-5 pt-5 sm:px-6 sm:pt-6">
+        <PanelTitle
+          index={index}
+          aside={fresh > 0 && <span className="font-mono text-[11px] text-accent">{fresh} new</span>}
+        >
+          Enquiries from the contact form
+        </PanelTitle>
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          options={ENQUIRY_TABS.map((t) => ({ ...t, count: all.filter((e) => inTab(e, t.value)).length }))}
+        />
+      </div>
+      {isLoading ? (
+        <div className="py-8">
+          <Spinner />
+        </div>
+      ) : isError ? (
+        <div className="px-5 py-6 sm:px-6">
+          <Msg msg={{ ok: false, text: errorMessage(error) }} />
+        </div>
+      ) : rows.length === 0 ? (
+        <Empty icon="message">
+          {tab === "inbox"
+            ? "No enquiries yet. Messages sent from the contact form on jackmiro.pt show up here."
+            : `Nothing marked ${tab}.`}
+        </Empty>
+      ) : (
+        <div className="mt-3 divide-y divide-line">
+          {rows.map((e) => (
+            <EnquiryRow key={e.id} e={e} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function EnquiryRow({ e }: { e: PortfolioEnquiry }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [emailId, setEmailId] = useState<number | null>(null);
+  const status = useMutation({
+    mutationFn: (s: EnquiryStatus) => setEnquiryStatus(e.id, s),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["enquiries"] }),
+  });
+  const set = (s: EnquiryStatus) => status.mutate(s);
+  const chips = [e.service, e.budget, e.timeline].filter(Boolean) as string[];
+  const preferred = (c: string) =>
+    e.preferred_contact === c ? <span className="ml-1 text-[10px] text-subtle">(preferred)</span> : null;
+  const link = "text-fg-2 underline decoration-line underline-offset-2 hover:text-accent hover:decoration-accent";
+
+  return (
+    <div className={`px-5 py-4 sm:px-6 ${e.status === "new" ? "bg-accent/[0.04]" : ""}`}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="font-medium text-fg">{e.name}</span>
+        {e.company && <span className="text-sm text-muted">{e.company}</span>}
+        {e.status === "new" && <Pill tone="info">new</Pill>}
+        {e.status === "replied" && <Pill tone="plum">replied</Pill>}
+        {e.status === "spam" && <Pill tone="dim">spam</Pill>}
+        {e.locale && e.locale !== "en" && <span className="font-mono text-[11px] uppercase text-subtle">{e.locale}</span>}
+        <span className="ml-auto text-xs text-subtle" title={fmtTime(e.created_at)}>
+          {timeAgo(e.created_at)}
+        </span>
+      </div>
+
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs">
+        {e.email && (
+          <a className={link} href={`mailto:${e.email}`}>
+            {e.email}
+            {preferred("email")}
+          </a>
+        )}
+        {e.telegram && (
+          <a className={link} href={`https://t.me/${encodeURIComponent(e.telegram)}`} target="_blank" rel="noreferrer">
+            @{e.telegram} · Telegram
+            {preferred("telegram")}
+          </a>
+        )}
+        {e.whatsapp && (
+          <a className={link} href={`https://wa.me/${e.whatsapp}`} target="_blank" rel="noreferrer">
+            +{e.whatsapp} · WhatsApp
+          </a>
+        )}
+        {e.site && (
+          <a className={link} href={/^https?:\/\//i.test(e.site) ? e.site : `https://${e.site}`} target="_blank" rel="noreferrer">
+            {e.site.replace(/^https?:\/\//i, "")}
+          </a>
+        )}
+      </div>
+
+      {chips.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {chips.map((c) => (
+            <span key={c} className="border border-line bg-surface-2 px-1.5 py-px text-[11px] text-fg-2">
+              {c}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title={open ? "Show less" : "Show the whole message"}
+        className={`mt-2 block w-full whitespace-pre-wrap break-words text-left text-sm text-fg-2 outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${open ? "" : "line-clamp-3"}`}
+      >
+        {e.message}
+      </button>
+
+      {e.application && (
+        <button
+          type="button"
+          onClick={() => setEmailId(e.application!.id)}
+          className="mt-2 inline-flex max-w-full items-center gap-1.5 truncate text-xs text-muted hover:text-accent"
+          title="Open the job and the email that brought them"
+        >
+          <span className="text-subtle">Came from your email</span>
+          <span className="truncate text-fg-2">
+            {e.application.company || e.application.to_email} · {e.application.subject}
+          </span>
+        </button>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {e.status === "new" && (
+          <Button size="sm" variant="subtle" busy={status.isPending} onClick={() => set("read")}>
+            Mark read
+          </Button>
+        )}
+        {e.status !== "replied" && e.status !== "spam" && (
+          <Button size="sm" variant="ghost" busy={status.isPending} onClick={() => set("replied")}>
+            Replied
+          </Button>
+        )}
+        {e.status === "replied" && (
+          <Button size="sm" variant="subtle" busy={status.isPending} onClick={() => set("read")}>
+            Not replied yet
+          </Button>
+        )}
+        {e.status === "spam" ? (
+          <Button size="sm" variant="subtle" busy={status.isPending} onClick={() => set("read")}>
+            Not spam
+          </Button>
+        ) : (
+          <Button size="sm" variant="subtle" busy={status.isPending} onClick={() => set("spam")}>
+            Spam
+          </Button>
+        )}
+        {status.isError && <Msg msg={{ ok: false, text: errorMessage(status.error) }} />}
+      </div>
+      {emailId !== null && <LeadDrawer emailId={emailId} onClose={() => setEmailId(null)} />}
+    </div>
   );
 }
 
